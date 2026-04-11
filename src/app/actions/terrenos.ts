@@ -36,16 +36,47 @@ export async function getTerrenos() {
   return terrenos.map((terreno) => {
     const contratoActivo = terreno.contratos[0] || null
     return {
-      ...terreno,
+      id: terreno.id,
+      identificador: terreno.identificador,
+      descripcion: terreno.descripcion,
       precioLista: terreno.precioLista.toString(),
-      clienteActual: contratoActivo?.cliente || null,
+      estado: terreno.estado,
+      coordenadaX: terreno.coordenadaX,
+      coordenadaY: terreno.coordenadaY,
+      superficie: terreno.superficie,
+      frente: terreno.frente,
+      fondo: terreno.fondo,
+      createdAt: terreno.createdAt.toISOString(),
+      updatedAt: terreno.updatedAt.toISOString(),
+      clienteActual: contratoActivo?.cliente
+        ? {
+            id: contratoActivo.cliente.id,
+            nombreCompleto: contratoActivo.cliente.nombreCompleto,
+            domicilio: contratoActivo.cliente.domicilio,
+            telefono: contratoActivo.cliente.telefono,
+            email: contratoActivo.cliente.email,
+            curp: contratoActivo.cliente.curp,
+            rfc: contratoActivo.cliente.rfc,
+            createdAt: contratoActivo.cliente.createdAt.toISOString(),
+            updatedAt: contratoActivo.cliente.updatedAt.toISOString(),
+          }
+        : null,
       contratoActivo: contratoActivo
         ? {
-            ...contratoActivo,
+            id: contratoActivo.id,
+            clienteId: contratoActivo.clienteId,
+            terrenoId: contratoActivo.terrenoId,
             precioVenta: contratoActivo.precioVenta.toString(),
             enganche: contratoActivo.enganche.toString(),
+            diaPagoMensual: contratoActivo.diaPagoMensual,
+            plazoMeses: contratoActivo.plazoMeses,
             montoMensualidad: contratoActivo.montoMensualidad.toString(),
             tasaMoraDiaria: contratoActivo.tasaMoraDiaria.toString(),
+            estado: contratoActivo.estado,
+            fechaInicio: contratoActivo.fechaInicio.toISOString(),
+            fechaFin: contratoActivo.fechaFin?.toISOString() || null,
+            createdAt: contratoActivo.createdAt.toISOString(),
+            updatedAt: contratoActivo.updatedAt.toISOString(),
           }
         : null,
     }

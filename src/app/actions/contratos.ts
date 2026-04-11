@@ -28,12 +28,57 @@ export async function getContratos() {
   })
 
   return contratos.map((contrato) => ({
-    ...contrato,
+    id: contrato.id,
+    clienteId: contrato.clienteId,
+    terrenoId: contrato.terrenoId,
     precioVenta: contrato.precioVenta.toString(),
     enganche: contrato.enganche.toString(),
+    diaPagoMensual: contrato.diaPagoMensual,
+    plazoMeses: contrato.plazoMeses,
     montoMensualidad: contrato.montoMensualidad.toString(),
     tasaMoraDiaria: contrato.tasaMoraDiaria.toString(),
-    ultimoPago: contrato.pagos[0] || null,
+    estado: contrato.estado,
+    fechaInicio: contrato.fechaInicio.toISOString(),
+    fechaFin: contrato.fechaFin?.toISOString() || null,
+    createdAt: contrato.createdAt.toISOString(),
+    updatedAt: contrato.updatedAt.toISOString(),
+    cliente: contrato.cliente
+      ? {
+          id: contrato.cliente.id,
+          nombreCompleto: contrato.cliente.nombreCompleto,
+          domicilio: contrato.cliente.domicilio,
+          telefono: contrato.cliente.telefono,
+          email: contrato.cliente.email,
+          curp: contrato.cliente.curp,
+          rfc: contrato.cliente.rfc,
+          createdAt: contrato.cliente.createdAt.toISOString(),
+          updatedAt: contrato.cliente.updatedAt.toISOString(),
+        }
+      : null,
+    terreno: contrato.terreno
+      ? {
+          id: contrato.terreno.id,
+          identificador: contrato.terreno.identificador,
+          descripcion: contrato.terreno.descripcion,
+          precioLista: contrato.terreno.precioLista.toString(),
+          estado: contrato.terreno.estado,
+          coordenadaX: contrato.terreno.coordenadaX,
+          coordenadaY: contrato.terreno.coordenadaY,
+          superficie: contrato.terreno.superficie,
+          frente: contrato.terreno.frente,
+          fondo: contrato.terreno.fondo,
+          createdAt: contrato.terreno.createdAt.toISOString(),
+          updatedAt: contrato.terreno.updatedAt.toISOString(),
+        }
+      : null,
+    ultimoPago: contrato.pagos[0]
+      ? {
+          id: contrato.pagos[0].id,
+          monto: contrato.pagos[0].monto.toString(),
+          fechaPago: contrato.pagos[0].fechaPago.toISOString(),
+          tipo: contrato.pagos[0].tipo,
+        }
+      : null,
   }))
 }
 

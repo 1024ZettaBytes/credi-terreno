@@ -25,7 +25,15 @@ export async function getClientes() {
   })
 
   return clientes.map((cliente) => ({
-    ...cliente,
+    id: cliente.id,
+    nombreCompleto: cliente.nombreCompleto,
+    domicilio: cliente.domicilio,
+    telefono: cliente.telefono,
+    email: cliente.email,
+    curp: cliente.curp,
+    rfc: cliente.rfc,
+    createdAt: cliente.createdAt.toISOString(),
+    updatedAt: cliente.updatedAt.toISOString(),
     contratosActivos: cliente.contratos.filter(
       (c) => c.estado === "ACTIVO" || c.estado === "EN_MORA"
     ).length,

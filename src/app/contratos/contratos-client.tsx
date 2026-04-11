@@ -28,9 +28,13 @@ interface Contrato {
   montoMensualidad: string
   tasaMoraDiaria: string
   estado: "ACTIVO" | "LIQUIDADO" | "CANCELADO" | "EN_MORA"
-  fechaInicio: Date
-  cliente: { id: string; nombreCompleto: string; telefono: string }
-  terreno: { id: string; identificador: string }
+  fechaInicio: string
+  fechaFin?: string | null
+  createdAt: string
+  updatedAt: string
+  cliente: { id: string; nombreCompleto: string; telefono: string } | null
+  terreno: { id: string; identificador: string } | null
+  ultimoPago?: { id: string; monto: string; fechaPago: string; tipo: string } | null
 }
 
 interface Cliente {
@@ -105,8 +109,8 @@ export function ContratosClient({
 
   const filteredContratos = contratos.filter(
     (c) =>
-      c.cliente.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.terreno.identificador.toLowerCase().includes(searchQuery.toLowerCase())
+      c.cliente?.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.terreno?.identificador.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const resetForm = () => {
@@ -277,9 +281,9 @@ export function ContratosClient({
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">{contrato.terreno.identificador}</h3>
+                      <h3 className="font-semibold">{contrato.terreno?.identificador || "Sin terreno"}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {contrato.cliente.nombreCompleto}
+                        {contrato.cliente?.nombreCompleto || "Sin cliente"}
                       </p>
                       <div className="flex gap-4 mt-1 text-sm">
                         <span className="flex items-center gap-1">

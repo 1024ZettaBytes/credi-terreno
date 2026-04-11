@@ -20,7 +20,7 @@ interface Pago {
   id: string
   contratoId: string
   monto: string
-  fechaPago: Date
+  fechaPago: string
   tipo: "ENGANCHE" | "MENSUALIDAD" | "INTERES_MORA" | "ABONO_CAPITAL" | "LIQUIDACION"
   numeroPago?: number | null
   periodoMes?: number | null
@@ -28,15 +28,15 @@ interface Pago {
   metodoPago: string
   referencia?: string | null
   contrato: {
-    cliente: { nombreCompleto: string }
-    terreno: { identificador: string }
-  }
+    cliente: { nombreCompleto: string } | null
+    terreno: { identificador: string } | null
+  } | null
 }
 
 interface Contrato {
   id: string
-  cliente: { nombreCompleto: string; telefono: string }
-  terreno: { identificador: string }
+  cliente: { id: string; nombreCompleto: string } | null
+  terreno: { id: string; identificador: string } | null
   montoMensualidad: string
 }
 
@@ -77,7 +77,7 @@ function formatearMoneda(valor: string | number): string {
   }).format(num)
 }
 
-function formatearFecha(fecha: Date): string {
+function formatearFecha(fecha: string | Date): string {
   return new Date(fecha).toLocaleDateString("es-MX", {
     year: "numeric",
     month: "short",
@@ -107,8 +107,8 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
 
   const filteredPagos = pagos.filter(
     (p) =>
-      p.contrato.cliente.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.contrato.terreno.identificador.toLowerCase().includes(searchQuery.toLowerCase())
+      p.contrato?.cliente?.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.contrato?.terreno?.identificador.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   // Calcular totales
@@ -278,9 +278,9 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
                       <DollarSign className="h-6 w-6 text-green-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">{pago.contrato.terreno.identificador}</h3>
+                      <h3 className="font-semibold">{pago.contrato?.terreno?.identificador || "Sin terreno"}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {pago.contrato.cliente.nombreCompleto}
+                        {pago.contrato?.cliente?.nombreCompleto || "Sin cliente"}
                       </p>
                       <div className="flex gap-4 mt-1 text-sm">
                         <span className="flex items-center gap-1">
@@ -353,7 +353,7 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
                 <option value="">Selecciona un contrato</option>
                 {contratosActivos.map((contrato) => (
                   <option key={contrato.id} value={contrato.id}>
-                    {contrato.terreno.identificador} - {contrato.cliente.nombreCompleto}
+                    {contrato.terreno?.identificador || "Sin terreno"} - {contrato.cliente?.nombreCompleto || "Sin cliente"}
                   </option>
                 ))}
               </select>

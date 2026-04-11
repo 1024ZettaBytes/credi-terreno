@@ -6,7 +6,7 @@ import type { TerrenoConCliente } from "@/types"
 export default async function DashboardPage() {
   const terrenosData = await getTerrenos()
   
-  // Transformar datos para cumplir con el tipo TerrenoConCliente
+  // Los datos ya vienen serializados desde el Server Action
   const terrenos: TerrenoConCliente[] = terrenosData.map((t) => ({
     id: t.id,
     identificador: t.identificador,
@@ -18,15 +18,15 @@ export default async function DashboardPage() {
     superficie: t.superficie,
     frente: t.frente,
     fondo: t.fondo,
-    createdAt: t.createdAt.toISOString(),
-    updatedAt: t.updatedAt.toISOString(),
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
     clienteActual: t.clienteActual ? {
       id: t.clienteActual.id,
       nombreCompleto: t.clienteActual.nombreCompleto,
       domicilio: t.clienteActual.domicilio,
       telefono: t.clienteActual.telefono,
-      createdAt: t.clienteActual.createdAt.toISOString(),
-      updatedAt: t.clienteActual.updatedAt.toISOString(),
+      createdAt: t.clienteActual.createdAt,
+      updatedAt: t.clienteActual.updatedAt,
     } : undefined,
     contratoActivo: t.contratoActivo ? {
       id: t.contratoActivo.id,
@@ -39,9 +39,9 @@ export default async function DashboardPage() {
       montoMensualidad: t.contratoActivo.montoMensualidad,
       tasaMoraDiaria: t.contratoActivo.tasaMoraDiaria,
       estado: t.contratoActivo.estado,
-      fechaInicio: t.contratoActivo.fechaInicio.toISOString(),
-      createdAt: t.contratoActivo.createdAt.toISOString(),
-      updatedAt: t.contratoActivo.updatedAt.toISOString(),
+      fechaInicio: t.contratoActivo.fechaInicio,
+      createdAt: t.contratoActivo.createdAt,
+      updatedAt: t.contratoActivo.updatedAt,
     } : undefined,
   }))
 

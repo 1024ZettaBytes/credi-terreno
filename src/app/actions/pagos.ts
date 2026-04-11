@@ -35,8 +35,41 @@ export async function getPagos(contratoId?: string) {
   })
 
   return pagos.map((pago) => ({
-    ...pago,
+    id: pago.id,
+    contratoId: pago.contratoId,
     monto: pago.monto.toString(),
+    fechaPago: pago.fechaPago.toISOString(),
+    tipo: pago.tipo,
+    numeroPago: pago.numeroPago,
+    periodoMes: pago.periodoMes,
+    periodoAnio: pago.periodoAnio,
+    diasMora: pago.diasMora,
+    metodoPago: pago.metodoPago,
+    referencia: pago.referencia,
+    comprobante: pago.comprobante,
+    notas: pago.notas,
+    registradoPorId: pago.registradoPorId,
+    createdAt: pago.createdAt.toISOString(),
+    updatedAt: pago.updatedAt.toISOString(),
+    contrato: pago.contrato
+      ? {
+          id: pago.contrato.id,
+          estado: pago.contrato.estado,
+          montoMensualidad: pago.contrato.montoMensualidad.toString(),
+          cliente: pago.contrato.cliente
+            ? {
+                id: pago.contrato.cliente.id,
+                nombreCompleto: pago.contrato.cliente.nombreCompleto,
+              }
+            : null,
+          terreno: pago.contrato.terreno
+            ? {
+                id: pago.contrato.terreno.id,
+                identificador: pago.contrato.terreno.identificador,
+              }
+            : null,
+        }
+      : null,
   }))
 }
 
