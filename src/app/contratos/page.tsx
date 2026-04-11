@@ -3,6 +3,8 @@ import { getClientes } from "@/app/actions/clientes"
 import { getTerrenos } from "@/app/actions/terrenos"
 import { ContratosClient } from "./contratos-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function ContratosPage() {
   const [contratos, clientes, terrenos] = await Promise.all([
     getContratos(),

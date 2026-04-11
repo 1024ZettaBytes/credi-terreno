@@ -2,6 +2,8 @@ import { getPagos } from "@/app/actions/pagos"
 import { getContratos } from "@/app/actions/contratos"
 import { PagosClient } from "./pagos-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function PagosPage() {
   const [pagos, contratos] = await Promise.all([
     getPagos(),
