@@ -1,4 +1,3 @@
-import { Building } from "lucide-react"
 import { getTerrenos } from "./actions/terrenos"
 import { DashboardClient } from "./dashboard-client"
 import type { TerrenoConCliente } from "@/types"
@@ -48,41 +47,8 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Building className="h-8 w-8 text-primary" />
-              <div>
-                <h1 className="text-2xl font-bold">CrediTerreno</h1>
-                <p className="text-sm text-muted-foreground">
-                  Sistema de Gestión de Créditos Inmobiliarios
-                </p>
-              </div>
-            </div>
-            <nav className="flex items-center gap-4">
-              <a href="/terrenos" className="text-sm hover:text-primary">Terrenos</a>
-              <a href="/clientes" className="text-sm hover:text-primary">Clientes</a>
-              <a href="/contratos" className="text-sm hover:text-primary">Contratos</a>
-              <a href="/pagos" className="text-sm hover:text-primary">Pagos</a>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <DashboardClient terrenos={terrenos} />
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 mt-8">
-        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
-          © 2026 CrediTerreno - Sistema de Gestión de Créditos Inmobiliarios
-        </div>
-      </footer>
+    <div className="container mx-auto px-4 py-6 md:py-8">
+      <DashboardClient terrenos={terrenos} />
     </div>
   )
 }

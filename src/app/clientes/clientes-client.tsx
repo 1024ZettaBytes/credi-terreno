@@ -134,18 +134,18 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-6 md:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <Users className="h-6 w-6 md:h-8 md:w-8" />
             Clientes
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Gestiona los clientes registrados
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={openCreateDialog} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Cliente
         </Button>
@@ -164,9 +164,9 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
 
       {/* Resumen */}
       <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="text-2xl font-bold">{clientes.length}</div>
-          <p className="text-sm text-muted-foreground">Clientes registrados</p>
+        <CardContent className="p-4 md:pt-6">
+          <div className="text-xl md:text-2xl font-bold">{clientes.length}</div>
+          <p className="text-xs md:text-sm text-muted-foreground">Clientes registrados</p>
         </CardContent>
       </Card>
 
@@ -184,52 +184,54 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
           filteredClientes.map((cliente) => (
             <Card key={cliente.id}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Users className="h-6 w-6 text-primary" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Users className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{cliente.nombreCompleto}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm md:text-base truncate">{cliente.nombreCompleto}</h3>
+                      <p className="text-xs md:text-sm text-muted-foreground truncate">
                         {cliente.domicilio}
                       </p>
-                      <div className="flex gap-4 mt-1">
-                        <span className="text-sm flex items-center gap-1">
+                      <div className="flex flex-wrap gap-2 md:gap-4 mt-1">
+                        <span className="text-xs md:text-sm flex items-center gap-1">
                           <Phone className="h-3 w-3" />
                           {cliente.telefono}
                         </span>
                         {cliente.email && (
-                          <span className="text-sm flex items-center gap-1">
+                          <span className="text-xs md:text-sm flex items-center gap-1 hidden sm:flex">
                             <Mail className="h-3 w-3" />
-                            {cliente.email}
+                            <span className="truncate max-w-[150px]">{cliente.email}</span>
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 md:gap-4">
                     {cliente.contratosActivos > 0 && (
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className="text-xs">
                         {cliente.contratosActivos} contrato(s)
                       </Badge>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 md:gap-2">
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-8 w-8 md:h-10 md:w-10"
                         onClick={() => openEditDialog(cliente)}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3 w-3 md:h-4 md:w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-8 w-8 md:h-10 md:w-10"
                         onClick={() => handleDelete(cliente.id)}
                         disabled={isDeleting || cliente.contratosActivos > 0}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
                       </Button>
                     </div>
                   </div>
@@ -242,7 +244,7 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
 
       {/* Dialog de crear/editar */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedCliente ? "Editar Cliente" : "Nuevo Cliente"}
@@ -287,7 +289,7 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="telefono">Teléfono *</Label>
                 <Input
@@ -314,7 +316,7 @@ export function ClientesClient({ clientesIniciales }: ClientesClientProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="curp">CURP</Label>
                 <Input

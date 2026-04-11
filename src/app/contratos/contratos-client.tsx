@@ -189,18 +189,18 @@ export function ContratosClient({
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-6 md:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FileText className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <FileText className="h-6 w-6 md:h-8 md:w-8" />
             Contratos
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Gestiona los contratos de venta
           </p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} disabled={terrenosDisponibles.length === 0}>
+        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} disabled={terrenosDisponibles.length === 0} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Contrato
         </Button>
@@ -226,37 +226,37 @@ export function ContratosClient({
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold">
               {contratos.filter((c) => c.estado === "ACTIVO").length}
             </div>
-            <p className="text-sm text-muted-foreground">Activos</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-red-600">
               {contratos.filter((c) => c.estado === "EN_MORA").length}
             </div>
-            <p className="text-sm text-muted-foreground">En Mora</p>
+            <p className="text-xs md:text-sm text-muted-foreground">En Mora</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-green-600">
               {contratos.filter((c) => c.estado === "LIQUIDADO").length}
             </div>
-            <p className="text-sm text-muted-foreground">Liquidados</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Liquidados</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-400">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-gray-400">
               {contratos.filter((c) => c.estado === "CANCELADO").length}
             </div>
-            <p className="text-sm text-muted-foreground">Cancelados</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Cancelados</p>
           </CardContent>
         </Card>
       </div>
@@ -275,17 +275,17 @@ export function ContratosClient({
           filteredContratos.map((contrato) => (
             <Card key={contrato.id}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <FileText className="h-6 w-6 text-primary" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <FileText className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{contrato.terreno?.identificador || "Sin terreno"}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm md:text-base truncate">{contrato.terreno?.identificador || "Sin terreno"}</h3>
+                      <p className="text-xs md:text-sm text-muted-foreground truncate">
                         {contrato.cliente?.nombreCompleto || "Sin cliente"}
                       </p>
-                      <div className="flex gap-4 mt-1 text-sm">
+                      <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm">
                         <span className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
                           {formatearMoneda(contrato.precioVenta)}
@@ -298,34 +298,38 @@ export function ContratosClient({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        {formatearMoneda(contrato.montoMensualidad)}/mes
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {contrato.plazoMeses} meses
-                      </p>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-left sm:text-right">
+                        <p className="font-semibold text-sm md:text-base">
+                          {formatearMoneda(contrato.montoMensualidad)}/mes
+                        </p>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          {contrato.plazoMeses} meses
+                        </p>
+                      </div>
+                      <Badge variant={estadoColores[contrato.estado]} className="text-xs">
+                        {estadoLabels[contrato.estado]}
+                      </Badge>
                     </div>
-                    <Badge variant={estadoColores[contrato.estado]}>
-                      {estadoLabels[contrato.estado]}
-                    </Badge>
                     {contrato.estado === "ACTIVO" && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 w-full sm:w-auto">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="flex-1 sm:flex-none text-xs"
                           onClick={() => handleLiquidar(contrato.id)}
                         >
-                          <CheckCircle className="h-4 w-4 mr-1" />
+                          <CheckCircle className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                           Liquidar
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
+                          className="flex-1 sm:flex-none text-xs"
                           onClick={() => handleCancelar(contrato.id)}
                         >
-                          <XCircle className="h-4 w-4 mr-1" />
+                          <XCircle className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                           Cancelar
                         </Button>
                       </div>
@@ -340,7 +344,7 @@ export function ContratosClient({
 
       {/* Dialog de crear contrato */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Contrato</DialogTitle>
             <DialogDescription>

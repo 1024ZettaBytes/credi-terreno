@@ -22,19 +22,22 @@ interface MapaTerrenosProps {
 }
 
 // Colores según estado del terreno
-const estadoColores: Record<EstadoTerreno, { bg: string; border: string; text: string }> = {
+const estadoColores: Record<EstadoTerreno, { bg: string; hoverBg: string; border: string; text: string }> = {
   DISPONIBLE: {
     bg: "bg-green-500",
+    hoverBg: "hover:bg-green-600",
     border: "border-green-600",
     text: "text-white",
   },
   APARTADO: {
     bg: "bg-yellow-500",
+    hoverBg: "hover:bg-yellow-600",
     border: "border-yellow-600",
     text: "text-white",
   },
   VENDIDO: {
     bg: "bg-red-500",
+    hoverBg: "hover:bg-red-600",
     border: "border-red-600",
     text: "text-white",
   },
@@ -73,122 +76,119 @@ export function MapaTerrenos({
     setSelectedTerreno(null)
   }
 
+  // Ordenar terrenos por fecha de creación (los más antiguos primero, nuevos al final)
+  const terrenosOrdenados = [...terrenos].sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+
   return (
     <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
           <MapPin className="h-5 w-5" />
           Mapa de Terrenos
         </CardTitle>
-        <div className="flex gap-4 mt-2">
+        <div className="flex flex-wrap gap-3 md:gap-4 mt-2">
           {(Object.keys(estadoLabels) as EstadoTerreno[]).map((estado) => (
             <div key={estado} className="flex items-center gap-2">
               <div
                 className={cn(
-                  "w-4 h-4 rounded-full",
+                  "w-3 h-3 md:w-4 md:h-4 rounded-full",
                   estadoColores[estado].bg
                 )}
               />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs md:text-sm text-muted-foreground">
                 {estadoLabels[estado]}
               </span>
             </div>
           ))}
         </div>
       </CardHeader>
-      <CardContent>
-        {/* Contenedor del mapa con posición relativa */}
-        <div 
-          className="relative w-full h-[600px] bg-slate-100 dark:bg-slate-800 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)
-            `,
-            backgroundSize: "20px 20px",
-          }}
-        >
-          {/* Etiqueta del mapa */}
-          <div className="absolute top-2 left-2 bg-white/80 dark:bg-slate-900/80 px-3 py-1 rounded-md text-xs font-medium text-slate-600 dark:text-slate-300">
-            Fraccionamiento - Vista Aérea
-          </div>
-
-          {/* Pins de terrenos */}
-          {terrenos.map((terreno) => {
+      <CardContent className="pt-0">
+        {/* Grid responsivo de terrenos */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          {terrenosOrdenados.map((terreno) => {
             const colores = estadoColores[terreno.estado]
+            const enMora = terreno.contratoActivo?.estado === "EN_MORA"
             
             return (
               <button
                 key={terreno.id}
                 onClick={() => handleTerrenoClick(terreno)}
                 className={cn(
-                  "absolute transform -translate-x-1/2 -translate-y-1/2",
-                  "flex flex-col items-center gap-1",
-                  "transition-all duration-200 hover:scale-110 hover:z-10",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-1"
+                  "relative flex flex-col items-center p-3 md:p-4 rounded-xl border-2 transition-all duration-200",
+                  "hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                  colores.bg,
+                  colores.hoverBg,
+                  colores.border,
+                  colores.text
                 )}
-                style={{
-                  left: `${terreno.coordenadaX}%`,
-                  top: `${terreno.coordenadaY}%`,
-                }}
               >
-                {/* Pin/Cuadro del terreno */}
-                <div
-                  className={cn(
-                    "w-12 h-12 rounded-lg border-2 flex items-center justify-center shadow-lg",
-                    colores.bg,
-                    colores.border,
-                    colores.text,
-                    "font-bold text-xs"
-                  )}
-                >
-                  <Home className="h-5 w-5" />
-                </div>
+                {/* Indicador de mora */}
+                {enMora && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 md:w-6 md:h-6 bg-orange-500 rounded-full flex items-center justify-center border-2 border-white shadow-md">
+                    <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
+                  </div>
+                )}
                 
-                {/* Etiqueta del identificador */}
-                <div className="bg-white dark:bg-slate-900 px-2 py-0.5 rounded text-xs font-semibold shadow-md whitespace-nowrap">
+                {/* Icono */}
+                <Home className="h-6 w-6 md:h-8 md:w-8 mb-1" />
+                
+                {/* Identificador */}
+                <span className="font-semibold text-xs md:text-sm text-center leading-tight">
                   {terreno.identificador}
-                </div>
+                </span>
+                
+                {/* Cliente si existe */}
+                {terreno.clienteActual && (
+                  <span className="text-[10px] md:text-xs opacity-90 mt-1 truncate max-w-full text-center">
+                    {terreno.clienteActual.nombreCompleto.split(' ')[0]}
+                  </span>
+                )}
               </button>
             )
           })}
 
           {/* Mensaje si no hay terrenos */}
           {terrenos.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-slate-500 dark:text-slate-400">
+            <div className="col-span-full py-12 text-center">
+              <Home className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+              <p className="text-muted-foreground">
                 No hay terrenos registrados
+              </p>
+              <p className="text-sm text-muted-foreground/70">
+                Agrega terrenos desde la sección de Terrenos
               </p>
             </div>
           )}
         </div>
 
         {/* Resumen de terrenos */}
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+        <div className="grid grid-cols-3 gap-2 md:gap-4 mt-6">
+          <div className="bg-green-100 p-3 md:p-4 rounded-lg text-center">
+            <p className="text-xl md:text-2xl font-bold text-green-600">
               {terrenos.filter((t) => t.estado === "DISPONIBLE").length}
             </p>
-            <p className="text-sm text-green-700 dark:text-green-300">Disponibles</p>
+            <p className="text-xs md:text-sm text-green-700">Disponibles</p>
           </div>
-          <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg">
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+          <div className="bg-yellow-100 p-3 md:p-4 rounded-lg text-center">
+            <p className="text-xl md:text-2xl font-bold text-yellow-600">
               {terrenos.filter((t) => t.estado === "APARTADO").length}
             </p>
-            <p className="text-sm text-yellow-700 dark:text-yellow-300">Apartados</p>
+            <p className="text-xs md:text-sm text-yellow-700">Apartados</p>
           </div>
-          <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg">
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+          <div className="bg-red-100 p-3 md:p-4 rounded-lg text-center">
+            <p className="text-xl md:text-2xl font-bold text-red-600">
               {terrenos.filter((t) => t.estado === "VENDIDO").length}
             </p>
-            <p className="text-sm text-red-700 dark:text-red-300">Vendidos</p>
+            <p className="text-xs md:text-sm text-red-700">Vendidos</p>
           </div>
         </div>
       </CardContent>
 
       {/* Dialog de información del terreno */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           {selectedTerreno && (
             <>
               <DialogHeader>
@@ -203,7 +203,7 @@ export function MapaTerrenos({
 
               <div className="space-y-4">
                 {/* Estado y precio */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <Badge
                     variant={
                       selectedTerreno.estado === "DISPONIBLE"
@@ -229,22 +229,22 @@ export function MapaTerrenos({
 
                 {/* Dimensiones si existen */}
                 {selectedTerreno.superficie && (
-                  <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
-                    <p className="text-sm font-medium">Dimensiones</p>
-                    <div className="grid grid-cols-3 gap-2 mt-2 text-sm">
+                  <div className="bg-slate-100 p-3 rounded-lg">
+                    <p className="text-sm font-medium mb-2">Dimensiones</p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Superficie:</span>
+                        <span className="text-muted-foreground text-xs">Superficie:</span>
                         <p className="font-medium">{selectedTerreno.superficie} m²</p>
                       </div>
                       {selectedTerreno.frente && (
                         <div>
-                          <span className="text-muted-foreground">Frente:</span>
+                          <span className="text-muted-foreground text-xs">Frente:</span>
                           <p className="font-medium">{selectedTerreno.frente} m</p>
                         </div>
                       )}
                       {selectedTerreno.fondo && (
                         <div>
-                          <span className="text-muted-foreground">Fondo:</span>
+                          <span className="text-muted-foreground text-xs">Fondo:</span>
                           <p className="font-medium">{selectedTerreno.fondo} m</p>
                         </div>
                       )}
@@ -254,14 +254,14 @@ export function MapaTerrenos({
 
                 {/* Información del cliente si está vendido o apartado */}
                 {selectedTerreno.clienteActual && (
-                  <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
+                  <div className="bg-blue-50 p-3 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                      <User className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-medium text-blue-800">
                         Cliente Asignado
                       </p>
                     </div>
-                    <p className="font-semibold">
+                    <p className="font-semibold text-sm md:text-base">
                       {selectedTerreno.clienteActual.nombreCompleto}
                     </p>
                     <p className="text-sm text-muted-foreground">
@@ -272,35 +272,35 @@ export function MapaTerrenos({
 
                 {/* Información del contrato si existe */}
                 {selectedTerreno.contratoActivo && (
-                  <div className="bg-purple-50 dark:bg-purple-950 p-3 rounded-lg space-y-2">
+                  <div className="bg-purple-50 p-3 rounded-lg space-y-2">
                     <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                      <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                      <DollarSign className="h-4 w-4 text-purple-600" />
+                      <p className="text-sm font-medium text-purple-800">
                         Contrato Activo
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Precio Venta:</span>
-                        <p className="font-medium">
+                        <span className="text-muted-foreground text-xs">Precio Venta:</span>
+                        <p className="font-medium text-xs md:text-sm">
                           {formatearMoneda(selectedTerreno.contratoActivo.precioVenta)}
                         </p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Enganche:</span>
-                        <p className="font-medium">
+                        <span className="text-muted-foreground text-xs">Enganche:</span>
+                        <p className="font-medium text-xs md:text-sm">
                           {formatearMoneda(selectedTerreno.contratoActivo.enganche)}
                         </p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Mensualidad:</span>
-                        <p className="font-medium">
+                        <span className="text-muted-foreground text-xs">Mensualidad:</span>
+                        <p className="font-medium text-xs md:text-sm">
                           {formatearMoneda(selectedTerreno.contratoActivo.montoMensualidad)}
                         </p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Día de pago:</span>
-                        <p className="font-medium">
+                        <span className="text-muted-foreground text-xs">Día de pago:</span>
+                        <p className="font-medium text-xs md:text-sm">
                           Día {selectedTerreno.contratoActivo.diaPagoMensual}
                         </p>
                       </div>
@@ -308,7 +308,7 @@ export function MapaTerrenos({
                     
                     {/* Alerta de mora si aplica */}
                     {selectedTerreno.contratoActivo.estado === "EN_MORA" && (
-                      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mt-2">
+                      <div className="flex items-center gap-2 text-red-600 mt-2">
                         <AlertTriangle className="h-4 w-4" />
                         <span className="text-sm font-medium">Contrato en mora</span>
                       </div>
@@ -317,7 +317,7 @@ export function MapaTerrenos({
                 )}
 
                 {/* Acciones */}
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
                   {selectedTerreno.estado === "DISPONIBLE" && onCrearContrato && (
                     <Button
                       onClick={() => {
@@ -345,7 +345,7 @@ export function MapaTerrenos({
                     </Button>
                   )}
                   
-                  <Button variant="outline" onClick={handleCloseDialog}>
+                  <Button variant="outline" onClick={handleCloseDialog} className="sm:w-auto">
                     Cerrar
                   </Button>
                 </div>

@@ -34,54 +34,54 @@ export function DashboardClient({ terrenos }: DashboardClientProps) {
   return (
     <>
       {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Terrenos</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Total Terrenos</CardTitle>
+            <Building className="h-4 w-4 text-muted-foreground hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalTerrenos}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{totalTerrenos}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground">
               En el fraccionamiento
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Disponibles</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Disponibles</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{terrenosDisponibles}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold text-green-600">{terrenosDisponibles}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground">
               Listos para venta
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendidos</CardTitle>
-            <Users className="h-4 w-4 text-red-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Vendidos</CardTitle>
+            <Users className="h-4 w-4 text-red-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{terrenosVendidos}</div>
-            <p className="text-xs text-muted-foreground">
-              Con contrato activo
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold text-red-600">{terrenosVendidos}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground">
+              Con contrato
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Mora</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">En Mora</CardTitle>
+            <AlertCircle className="h-4 w-4 text-orange-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{contratosEnMora}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold text-orange-600">{contratosEnMora}</div>
+            <p className="text-[10px] md:text-xs text-muted-foreground">
               Requieren atención
             </p>
           </CardContent>

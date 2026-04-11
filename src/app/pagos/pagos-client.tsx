@@ -196,18 +196,18 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-6 md:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <DollarSign className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <DollarSign className="h-6 w-6 md:h-8 md:w-8" />
             Pagos
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Historial de pagos registrados
           </p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} disabled={contratosActivos.length === 0}>
+        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} disabled={contratosActivos.length === 0} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Registrar Pago
         </Button>
@@ -233,27 +233,27 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{pagos.length}</div>
-            <p className="text-sm text-muted-foreground">Total de pagos</p>
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-lg md:text-2xl font-bold">{pagos.length}</div>
+            <p className="text-xs md:text-sm text-muted-foreground">Total pagos</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-lg md:text-2xl font-bold text-green-600">
               {formatearMoneda(totalHoy)}
             </div>
-            <p className="text-sm text-muted-foreground">Cobrado hoy</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Hoy</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">
+          <CardContent className="p-3 md:pt-6">
+            <div className="text-lg md:text-2xl font-bold text-blue-600">
               {formatearMoneda(totalMes)}
             </div>
-            <p className="text-sm text-muted-foreground">Cobrado este mes</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Este mes</p>
           </CardContent>
         </Card>
       </div>
@@ -272,49 +272,50 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
           filteredPagos.map((pago) => (
             <Card key={pago.id}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-green-600" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                      <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{pago.contrato?.terreno?.identificador || "Sin terreno"}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm md:text-base truncate">{pago.contrato?.terreno?.identificador || "Sin terreno"}</h3>
+                      <p className="text-xs md:text-sm text-muted-foreground truncate">
                         {pago.contrato?.cliente?.nombreCompleto || "Sin cliente"}
                       </p>
-                      <div className="flex gap-4 mt-1 text-sm">
+                      <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {formatearFecha(pago.fechaPago)}
                         </span>
                         {pago.referencia && (
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 hidden sm:flex">
                             <FileText className="h-3 w-3" />
-                            {pago.referencia}
+                            <span className="truncate max-w-[100px]">{pago.referencia}</span>
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold text-lg">{formatearMoneda(pago.monto)}</p>
-                      <p className="text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4">
+                    <div className="text-left sm:text-right">
+                      <p className="font-semibold text-sm md:text-lg">{formatearMoneda(pago.monto)}</p>
+                      <p className="text-xs md:text-sm text-muted-foreground">
                         {metodoLabels[pago.metodoPago as keyof typeof metodoLabels]}
                       </p>
                     </div>
-                    <Badge variant={tipoColores[pago.tipo]}>
+                    <Badge variant={tipoColores[pago.tipo]} className="text-xs hidden sm:inline-flex">
                       {tipoLabels[pago.tipo]}
                       {pago.tipo === "MENSUALIDAD" && pago.numeroPago && ` #${pago.numeroPago}`}
                     </Badge>
                     <Button
                       variant="outline"
                       size="icon"
+                      className="h-8 w-8 md:h-10 md:w-10"
                       onClick={() => handleDelete(pago.id)}
                       disabled={isDeleting}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
                     </Button>
                   </div>
                 </div>
@@ -326,7 +327,7 @@ export function PagosClient({ pagosIniciales, contratosActivos }: PagosClientPro
 
       {/* Dialog de registrar pago */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Pago</DialogTitle>
             <DialogDescription>

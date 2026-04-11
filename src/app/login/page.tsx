@@ -52,7 +52,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 from-slate-900 to-slate-800 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
           {/* Logo */}
@@ -74,8 +74,8 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             {/* Error message */}
             {error && (
-              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3">
-                <p className="text-sm text-red-600 dark:text-red-400 text-center">
+              <div className="bg-red-50 bg-red-950 border border-red-200 border-red-800 rounded-md p-3">
+                <p className="text-sm text-red-600 text-red-400 text-center">
                   {error}
                 </p>
               </div>
@@ -185,7 +185,7 @@ export default function LoginPage() {
 
       {/* Demo credentials hint */}
       <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg px-4 py-2 text-sm">
+        <div className="bg-white bg-slate-800 rounded-lg shadow-lg px-4 py-2 text-sm">
           <p className="text-muted-foreground">
             Demo: <span className="font-mono">admin@crediterreno.com</span> / <span className="font-mono">admin123</span>
           </p>

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Plus, Pencil, Trash2, MapPin, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -55,8 +55,6 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
     descripcion: "",
     precioLista: "",
     estado: "DISPONIBLE" as EstadoTerreno,
-    coordenadaX: "50",
-    coordenadaY: "50",
     superficie: "",
     frente: "",
     fondo: "",
@@ -74,8 +72,6 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
       descripcion: "",
       precioLista: "",
       estado: "DISPONIBLE",
-      coordenadaX: "50",
-      coordenadaY: "50",
       superficie: "",
       frente: "",
       fondo: "",
@@ -96,8 +92,6 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
       descripcion: terreno.descripcion || "",
       precioLista: terreno.precioLista,
       estado: terreno.estado,
-      coordenadaX: terreno.coordenadaX.toString(),
-      coordenadaY: terreno.coordenadaY.toString(),
       superficie: terreno.superficie?.toString() || "",
       frente: terreno.frente?.toString() || "",
       fondo: terreno.fondo?.toString() || "",
@@ -115,8 +109,9 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
       descripcion: formData.descripcion || undefined,
       precioLista: parseFloat(formData.precioLista),
       estado: formData.estado,
-      coordenadaX: parseFloat(formData.coordenadaX),
-      coordenadaY: parseFloat(formData.coordenadaY),
+      // Coordenadas se asignan automáticamente (no se usan en el grid responsivo)
+      coordenadaX: selectedTerreno?.coordenadaX ?? 0,
+      coordenadaY: selectedTerreno?.coordenadaY ?? 0,
       superficie: formData.superficie ? parseFloat(formData.superficie) : undefined,
       frente: formData.frente ? parseFloat(formData.frente) : undefined,
       fondo: formData.fondo ? parseFloat(formData.fondo) : undefined,
@@ -156,18 +151,18 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-6 md:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <MapPin className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <MapPin className="h-6 w-6 md:h-8 md:w-8" />
             Terrenos
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Gestiona los terrenos del fraccionamiento
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={openCreateDialog} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Terreno
         </Button>
@@ -185,29 +180,29 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="p-4 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-green-600">
               {terrenos.filter((t) => t.estado === "DISPONIBLE").length}
             </div>
-            <p className="text-sm text-muted-foreground">Disponibles</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Disponibles</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="p-4 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-yellow-600">
               {terrenos.filter((t) => t.estado === "APARTADO").length}
             </div>
-            <p className="text-sm text-muted-foreground">Apartados</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Apartados</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">
+          <CardContent className="p-4 md:pt-6">
+            <div className="text-xl md:text-2xl font-bold text-red-600">
               {terrenos.filter((t) => t.estado === "VENDIDO").length}
             </div>
-            <p className="text-sm text-muted-foreground">Vendidos</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Vendidos</p>
           </CardContent>
         </Card>
       </div>
@@ -226,10 +221,10 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
           filteredTerrenos.map((terreno) => (
             <Card key={terreno.id}>
               <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
                     <div
-                      className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold ${
+                      className={`w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center text-white font-bold shrink-0 ${
                         terreno.estado === "DISPONIBLE"
                           ? "bg-green-500"
                           : terreno.estado === "APARTADO"
@@ -237,50 +232,52 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
                           : "bg-red-500"
                       }`}
                     >
-                      <MapPin className="h-6 w-6" />
+                      <MapPin className="h-5 w-5 md:h-6 md:w-6" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{terreno.identificador}</h3>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm md:text-base truncate">{terreno.identificador}</h3>
+                      <p className="text-xs md:text-sm text-muted-foreground truncate">
                         {terreno.descripcion || "Sin descripción"}
                       </p>
                       {terreno.clienteActual && (
-                        <p className="text-sm text-blue-600">
+                        <p className="text-xs md:text-sm text-blue-600 truncate">
                           Cliente: {terreno.clienteActual.nombreCompleto}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 md:gap-4">
+                    <div className="text-left sm:text-right">
+                      <p className="font-semibold text-sm md:text-base">
                         {formatearMoneda(terreno.precioLista)}
                       </p>
                       {terreno.superficie && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs md:text-sm text-muted-foreground">
                           {terreno.superficie} m²
                         </p>
                       )}
                     </div>
-                    <Badge variant={estadoColores[terreno.estado]}>
+                    <Badge variant={estadoColores[terreno.estado]} className="hidden sm:inline-flex">
                       {estadoLabels[terreno.estado]}
                     </Badge>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 md:gap-2">
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-8 w-8 md:h-10 md:w-10"
                         onClick={() => openEditDialog(terreno)}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3 w-3 md:h-4 md:w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-8 w-8 md:h-10 md:w-10"
                         onClick={() => handleDelete(terreno.id)}
                         disabled={isDeleting || terreno.estado !== "DISPONIBLE"}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
                       </Button>
                     </div>
                   </div>
@@ -293,7 +290,7 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
 
       {/* Dialog de crear/editar */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedTerreno ? "Editar Terreno" : "Nuevo Terreno"}
@@ -373,38 +370,7 @@ export function TerrenosClient({ terrenosIniciales }: TerrenosClientProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="coordenadaX">Posición X (%) *</Label>
-                <Input
-                  id="coordenadaX"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.coordenadaX}
-                  onChange={(e) =>
-                    setFormData({ ...formData, coordenadaX: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="coordenadaY">Posición Y (%) *</Label>
-                <Input
-                  id="coordenadaY"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.coordenadaY}
-                  onChange={(e) =>
-                    setFormData({ ...formData, coordenadaY: e.target.value })
-                  }
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="superficie">Superficie (m²)</Label>
                 <Input

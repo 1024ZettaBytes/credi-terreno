@@ -318,8 +318,8 @@ export function FormularioPago({
 
           {/* Error general */}
           {errors.submit && (
-            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3">
-              <p className="text-sm text-red-600 dark:text-red-400">
+            <div className="bg-red-50 bg-red-950 border border-red-200 border-red-800 rounded-md p-3">
+              <p className="text-sm text-red-600 text-red-400">
                 {errors.submit}
               </p>
             </div>
