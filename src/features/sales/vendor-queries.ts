@@ -1,7 +1,8 @@
 import "server-only"
 import prisma from "@/lib/prisma"
 import type { VendedorDTO, VentaDTO, LoteDTO, ClienteDTO } from "@/types"
-
+import { EstatusVenta } from "@prisma/client"
+import { Decimal } from "@prisma/client/runtime/library"
 export interface VendedorDetalleDTO extends VendedorDTO {
   totalVentas: number
   ventasActivas: number
@@ -50,9 +51,9 @@ export async function getVendedorDetalle(vendedorId: string): Promise<VendedorDe
   if (!vendedor) return null
 
   const totalVentas = vendedor.ventas.length
-  const ventasActivas = vendedor.ventas.filter((v) => v.estatus === "ACTIVO").length
-  const ventasCerradas = vendedor.ventas.filter((v) => v.estatus === "CERRADO").length
-  const totalComision = vendedor.ventas.reduce((sum, v) => sum + v.comisionMonto, 0n)
+  const ventasActivas = vendedor.ventas.filter((v) => v.estatus === EstatusVenta.ACTIVO).length
+  const ventasCerradas = vendedor.ventas.filter((v) => v.estatus === EstatusVenta.LIQUIDADO).length
+  const totalComision = vendedor.ventas.reduce((sum, v) => new Decimal(sum).add(v.comisionMonto), new Decimal(0))
   const promedioPorVenta =
     totalVentas > 0 ? (Number(totalComision) / totalVentas).toFixed(2) : "0"
 
