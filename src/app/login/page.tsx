@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({ email: "", password: "" })
+  const [formData, setFormData] = useState({ username: "", password: "" })
   const [error, setError] = useState("")
   const params = useSearchParams()
   const callbackUrl = params.get("callbackUrl") ?? "/"
@@ -22,12 +22,12 @@ function LoginForm() {
     setError("")
     setIsLoading(true)
     try {
-      if (!formData.email || !formData.password) {
+      if (!formData.username || !formData.password) {
         setError("Por favor complete todos los campos")
         return
       }
       const res = await signIn("credentials", {
-        username: formData.email,
+        username: formData.username,
         password: formData.password,
         redirect: false,
         callbackUrl,
@@ -70,16 +70,15 @@ function LoginForm() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Correo Electrónico</Label>
+              <Label htmlFor="username">Usuario</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@crediterreno.com"
+                  id="username"
+                  type="text"
                   className="pl-10"
-                  value={formData.email}
-                  onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+                  value={formData.username}
+                  onChange={(e) => setFormData((p) => ({ ...p, username: e.target.value }))}
                   disabled={isLoading}
                   required
                 />
@@ -93,7 +92,6 @@ function LoginForm() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
                   className="pl-10 pr-10"
                   value={formData.password}
                   onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))}
