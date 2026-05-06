@@ -1,15 +1,35 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
 import { Decimal, toDecimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
 import { requireAdmin, requireUser } from "@/lib/rbac"
-import { calcularComision, calcularMensualidadBase } from "@/lib/finance"
+import { calcularComision, calcularMensualidadBase, fechaVencimientoMensualidad } from "@/lib/finance"
+import { parseLocalDate } from "@/lib/date"
 import { ventaSchema, traspasoSchema, recuperacionSchema } from "./schemas"
+
+function toFriendlyDbError(e: unknown, fallback: string): string {
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    if (e.code === "P2003") {
+      return "No se pudo guardar por una referencia inválida. Cierra sesión y vuelve a iniciar, luego intenta de nuevo."
+    }
+    if (e.code === "P2025") {
+      return "No se encontró uno de los registros relacionados."
+    }
+  }
+  return e instanceof Error ? e.message : fallback
+}
 
 export async function createVenta(input: unknown): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser()
+  console.log("Usuario en createVenta:", user); // DEBUG
+  const userExists = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { id: true },
+  })
+  const actorUserId = userExists?.id ?? null
   const parsed = ventaSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const data = parsed.data
@@ -36,6 +56,7 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     comisionMonto = calcularComision(precioTotal, comisionPorcentaje)
   }
 
+  const proximaFechaPago = fechaVencimientoMensualidad(data.fechaVenta, data.diaPago, 1)
   try {
     const venta = await prisma.$transaction(async (tx) => {
       const v = await tx.venta.create({
@@ -51,10 +72,14 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
           plazoMeses: data.plazoMeses,
           diaPago: data.diaPago,
           interesMoratorioPorcentaje: new Decimal(data.interesMoratorioPorcentaje).toFixed(2),
+          proximaFechaPago,
+          saldoMensualidadActual: mensualidad.toFixed(2),
+          numeroMensualidadActual: 1,
+          saldoCapital: montoFinanciado.toFixed(2),
           comisionPorcentaje: comisionPorcentaje.toFixed(2),
           comisionMonto: comisionMonto.toFixed(2),
           notas: data.notas || null,
-          createdById: user.id,
+          createdById: actorUserId,
         },
       })
       // Si hay enganche, registrarlo como pago
@@ -65,7 +90,7 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
             monto: enganche.toFixed(2),
             tipo: "ENGANCHE",
             fechaRegistro: data.fechaVenta,
-            registradoPorId: user.id,
+            registradoPorId: actorUserId,
           },
         })
       }
@@ -80,7 +105,7 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     revalidatePath("/")
     return ok({ id: venta.id })
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Error al crear venta")
+    return fail(toFriendlyDbError(e, "Error al crear venta"))
   }
 }
 
@@ -92,7 +117,7 @@ export async function cancelarVenta(ventaId: string): Promise<ActionResult<null>
   await prisma.$transaction([
     prisma.venta.update({
       where: { id: ventaId },
-      data: { estatus: "CANCELADO", fechaCierre: new Date() },
+      data: { estatus: "CANCELADO", fechaCierre: parseLocalDate(new Date()) },
     }),
     prisma.lote.update({ where: { id: venta.loteId }, data: { estatus: "DISPONIBLE" } }),
   ])
@@ -108,110 +133,61 @@ export async function liquidarVenta(ventaId: string): Promise<ActionResult<null>
   if (venta.estatus !== "ACTIVO") return fail("Solo ventas activas pueden liquidarse")
   await prisma.venta.update({
     where: { id: ventaId },
-    data: { estatus: "LIQUIDADO", fechaCierre: new Date() },
+    data: { estatus: "LIQUIDADO", fechaCierre: parseLocalDate(new Date()) },
   })
   revalidatePath("/ventas")
   return ok(null)
 }
 
 /**
- * Traspaso: marca la venta original como TRASPASADO, crea una nueva venta para el cliente nuevo
- * sobre el mismo lote y registra la transacción en `traspasos`.
+ * Traspaso: cambia el cliente de la venta activa y registra la transacción en `traspasos`.
  */
-export async function createTraspaso(input: unknown): Promise<ActionResult<{ ventaNuevaId: string; traspasoId: string }>> {
+export async function createTraspaso(input: unknown): Promise<ActionResult<{ traspasoId: string }>> {
   const user = await requireAdmin()
+  const userExists = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { id: true },
+  })
+  const actorUserId = userExists?.id ?? null
   const parsed = traspasoSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const data = parsed.data
 
   const ventaOriginal = await prisma.venta.findUnique({
     where: { id: data.ventaOriginalId },
-    include: { lote: true },
   })
-  if (!ventaOriginal) return fail("Venta original no encontrada")
+  if (!ventaOriginal) return fail("Venta no encontrada")
   if (ventaOriginal.estatus !== "ACTIVO") return fail("Solo se traspasan ventas activas")
   if (ventaOriginal.clienteId === data.clienteNuevoId) return fail("El cliente nuevo es el mismo")
 
-  const precioTotal = toDecimal(ventaOriginal.lote.totalPrecio)
-  const enganche = toDecimal(data.enganche)
-  const montoFinanciado = precioTotal.minus(enganche)
-  const mensualidad = calcularMensualidadBase(precioTotal, enganche, data.plazoMeses)
-
-  let comisionPorcentaje = new Decimal(0)
-  let comisionMonto = new Decimal(0)
-  if (data.vendedorId) {
-    const vendedor = await prisma.vendedor.findUnique({ where: { id: data.vendedorId } })
-    if (vendedor) {
-      comisionPorcentaje = toDecimal(vendedor.comisionPorcentaje)
-      comisionMonto = calcularComision(precioTotal, comisionPorcentaje)
-    }
-  }
-
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Cerrar venta original
+      // 1. Cambiar el cliente en la venta existente
       await tx.venta.update({
         where: { id: ventaOriginal.id },
-        data: { estatus: "TRASPASADO", fechaCierre: data.fechaTraspaso },
+        data: { clienteId: data.clienteNuevoId },
       })
-      // 2. Marcar lote como TRASPASADO temporalmente, luego pasará a VENDIDO con la nueva venta
-      // 3. Crear nueva venta
-      const ventaNueva = await tx.venta.create({
-        data: {
-          loteId: ventaOriginal.loteId,
-          clienteId: data.clienteNuevoId,
-          vendedorId: data.vendedorId || null,
-          fechaVenta: data.fechaTraspaso,
-          precioTotal: precioTotal.toFixed(2),
-          enganche: enganche.toFixed(2),
-          montoFinanciado: montoFinanciado.toFixed(2),
-          mensualidadBase: mensualidad.toFixed(2),
-          plazoMeses: data.plazoMeses,
-          diaPago: data.diaPago,
-          interesMoratorioPorcentaje: new Decimal(data.interesMoratorioPorcentaje).toFixed(2),
-          comisionPorcentaje: comisionPorcentaje.toFixed(2),
-          comisionMonto: comisionMonto.toFixed(2),
-          notas: data.notas || `Traspaso desde venta ${ventaOriginal.id}`,
-          createdById: user.id,
-        },
-      })
-      if (enganche.greaterThan(0)) {
-        await tx.pago.create({
-          data: {
-            ventaId: ventaNueva.id,
-            monto: enganche.toFixed(2),
-            tipo: "ENGANCHE",
-            fechaRegistro: data.fechaTraspaso,
-            registradoPorId: user.id,
-          },
-        })
-      }
-      // 4. Registrar traspaso
+      // 2. Registrar traspaso
       const traspaso = await tx.traspaso.create({
         data: {
           ventaOriginalId: ventaOriginal.id,
-          ventaNuevaId: ventaNueva.id,
+          ventaNuevaId: ventaOriginal.id,
           clienteAnteriorId: ventaOriginal.clienteId,
           clienteNuevoId: data.clienteNuevoId,
-          fechaTraspaso: data.fechaTraspaso,
-          costoTraspaso: new Decimal(data.costoTraspaso).toFixed(2),
+          fechaTraspaso: parseLocalDate(new Date()),
+          costoTraspaso: "0",
           notas: data.notas || null,
-          createdById: user.id,
+          createdById: actorUserId,
         },
       })
-      // 5. Lote queda VENDIDO bajo el nuevo titular
-      await tx.lote.update({
-        where: { id: ventaOriginal.loteId },
-        data: { estatus: "VENDIDO" },
-      })
-      return { ventaNueva, traspaso }
+      return { traspaso }
     })
     revalidatePath("/ventas")
     revalidatePath("/traspasos")
     revalidatePath("/inventario")
-    return ok({ ventaNuevaId: result.ventaNueva.id, traspasoId: result.traspaso.id })
+    return ok({ traspasoId: result.traspaso.id })
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Error al crear traspaso")
+    return fail(toFriendlyDbError(e, "Error al crear traspaso"))
   }
 }
 
@@ -245,7 +221,7 @@ export async function recuperarLote(input: unknown): Promise<ActionResult<{ id: 
     const rec = await prisma.$transaction(async (tx) => {
       await tx.venta.update({
         where: { id: ventaId },
-        data: { estatus: "CANCELADO", fechaCierre: new Date() },
+        data: { estatus: "CANCELADO", fechaCierre: parseLocalDate(new Date()) },
       })
       await tx.lote.update({
         where: { id: venta.loteId },

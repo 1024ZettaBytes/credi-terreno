@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatearMoneda } from "@/lib/money"
+import { parseLocalDate } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import {
   createManzana,
@@ -53,7 +54,7 @@ interface Props {
 
 export function InventarioClient({ manzanas, lotes, clientes, vendedores }: Props) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [filtroManzana, setFiltroManzana] = useState<string>("")
   const [filtroEstatus, setFiltroEstatus] = useState<string>("")
 
@@ -386,7 +387,12 @@ function LoteDialog({
             <Label>Notas</Label>
             <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
           </div>
-          {error && <p className="text-sm text-red-600 flex items-center gap-1"><AlertCircle className="h-4 w-4" />{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 flex items-start gap-1 break-words whitespace-normal">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span className="min-w-0 break-all">{error}</span>
+            </p>
+          )}
           <div className="flex gap-2 justify-between">
             <div>
               {editing && (
@@ -431,8 +437,8 @@ function VenderDialog({
     vendedorId: "",
     enganche: "",
     plazoMeses: "12",
-    diaPago: "5",
-    interesMoratorioPorcentaje: "5",
+    diaPago: "28",
+    interesMoratorioPorcentaje: "10",
     notas: "",
   })
   const [error, setError] = useState("")
@@ -456,7 +462,7 @@ function VenderDialog({
         plazoMeses: Number(form.plazoMeses),
         diaPago: Number(form.diaPago),
         interesMoratorioPorcentaje: Number(form.interesMoratorioPorcentaje),
-        fechaVenta: new Date(),
+        fechaVenta: parseLocalDate(new Date()),
       })
       if (!r.ok) { setError(r.error); return }
       onOpenChange(false)
@@ -468,9 +474,8 @@ function VenderDialog({
     <Dialog open={!!lote} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Vender lote {lote?.manzana?.nombre}-{lote?.numLote}</DialogTitle>
+          <DialogTitle>Vender lote {lote?.numLote} ( {lote?.manzana?.nombre})</DialogTitle>
           <DialogDescription>
-            Precio total: <span className="font-semibold">{formatearMoneda(precio)}</span>
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
@@ -512,6 +517,8 @@ function VenderDialog({
             </div>
           </div>
           <div className="bg-blue-50 p-3 rounded text-sm space-y-1">
+            <div className="flex justify-between"><span>Precio total:</span><span className="font-semibold">{formatearMoneda(precio)}</span></div>
+            <div className="flex justify-between"><span>Enganche:</span><span className="font-semibold">{formatearMoneda(enganche)}</span></div>
             <div className="flex justify-between"><span>Monto a financiar:</span><span className="font-semibold">{formatearMoneda(precio - enganche)}</span></div>
             <div className="flex justify-between"><span>Mensualidad estimada:</span><span className="font-semibold">{formatearMoneda(mensualidad)}</span></div>
           </div>
@@ -519,7 +526,12 @@ function VenderDialog({
             <Label>Notas</Label>
             <Textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
           </div>
-          {error && <p className={cn("text-sm text-red-600 flex items-center gap-1")}><AlertCircle className="h-4 w-4" />{error}</p>}
+          {error && (
+            <p className={cn("text-sm text-red-600 flex items-start gap-1 break-words whitespace-normal") }>
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span className="min-w-0 break-all">{error}</span>
+            </p>
+          )}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={pending}>{pending ? "Creando..." : "Crear venta"}</Button>

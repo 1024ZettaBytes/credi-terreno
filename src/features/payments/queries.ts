@@ -1,5 +1,6 @@
 import "server-only"
 import prisma from "@/lib/prisma"
+import { formatDateISO } from "@/lib/date"
 import type { PagoDTO } from "@/types"
 
 export async function listPagos(filtros?: {
@@ -24,14 +25,14 @@ export async function listPagos(filtros?: {
         include: { cliente: true, lote: { include: { manzana: true } } },
       },
     },
-    orderBy: { fechaRegistro: "desc" },
+    orderBy: [{ fechaRegistro: "desc" }, { createdAt: "desc" }],
   })
   return items.map((p) => ({
     id: p.id,
     ventaId: p.ventaId,
     monto: p.monto.toFixed(2),
-    fechaRegistro: p.fechaRegistro.toISOString(),
-    fechaPeriodo: p.fechaPeriodo?.toISOString() ?? null,
+    fechaRegistro: formatDateISO(p.fechaRegistro),
+    fechaPeriodo: p.fechaPeriodo ? formatDateISO(p.fechaPeriodo) : null,
     tipo: p.tipo,
     periodoMes: p.periodoMes,
     periodoAnio: p.periodoAnio,

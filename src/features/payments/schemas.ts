@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { parseLocalDate } from "@/lib/date"
 
 export const TipoPagoEnum = z.enum([
   "ENGANCHE",
@@ -8,13 +9,15 @@ export const TipoPagoEnum = z.enum([
   "LIQUIDACION",
 ])
 
+const dateOnlySchema = z
+  .union([z.date(), z.string()])
+  .transform((val) => parseLocalDate(val))
+
 export const registrarPagoSchema = z.object({
   ventaId: z.string().min(1),
   monto: z.coerce.number().positive("Monto debe ser > 0"),
-  fechaRegistro: z.coerce.date().default(() => new Date()),
+  fechaRegistro: dateOnlySchema.default(() => parseLocalDate(new Date())),
   tipo: TipoPagoEnum.default("MENSUALIDAD"),
-  periodoMes: z.coerce.number().int().min(1).max(12).optional().nullable(),
-  periodoAnio: z.coerce.number().int().min(2000).max(2100).optional().nullable(),
   comprobanteUrl: z.string().optional().nullable(),
   notas: z.string().max(1000).optional().nullable(),
   /** Si true, se calcula automáticamente el cargo moratorio cuando aplica */

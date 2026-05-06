@@ -88,11 +88,9 @@ export default async function DashboardPage() {
                             {venta.cliente?.nombre} — {venta.lote?.manzana?.nombre}-{venta.lote?.numLote}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {estado.mensualidadesVencidas.length > 0
-                              ? `${estado.mensualidadesVencidas.length} mensualidad(es) vencida(s)`
-                              : estado.proximoVencimiento
-                                ? `Próximo vencimiento: ${formatearFecha(estado.proximoVencimiento)}`
-                                : "Al corriente"}
+                            {estado.diasAtraso > 0
+                              ? `${estado.diasAtraso} día(s) de atraso`
+                              : `Próximo vencimiento: ${formatearFecha(estado.proximaFechaPago.toISOString())}`}
                           </p>
                         </div>
                       </div>

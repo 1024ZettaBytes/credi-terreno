@@ -139,6 +139,12 @@ model Venta {
   diaPago                    Int
   interesMoratorioPorcentaje Decimal      @db.Decimal(5, 2) @default(5.0)
 
+  // Estado vivo del crédito (se actualiza con cada pago)
+  proximaFechaPago           DateTime
+  saldoMensualidadActual     Decimal      @db.Decimal(12, 2)
+  numeroMensualidadActual    Int          @default(1)
+  saldoCapital               Decimal      @db.Decimal(14, 2)
+
   comisionPorcentaje         Decimal      @db.Decimal(5, 2) @default(0)
   comisionMonto              Decimal      @db.Decimal(14, 2) @default(0)
 

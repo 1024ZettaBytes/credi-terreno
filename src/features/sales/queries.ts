@@ -1,5 +1,6 @@
 import "server-only"
 import prisma from "@/lib/prisma"
+import { formatDateISO } from "@/lib/date"
 import { calcularEstadoCuenta, semaforoCobranza, type SemaforoColor, type EstadoCuenta } from "@/lib/finance"
 import type { VentaDTO } from "@/types"
 
@@ -14,7 +15,7 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
     loteId: v.loteId,
     clienteId: v.clienteId,
     vendedorId: v.vendedorId,
-    fechaVenta: v.fechaVenta.toISOString(),
+    fechaVenta: formatDateISO(v.fechaVenta),
     precioTotal: v.precioTotal.toFixed(2),
     enganche: v.enganche.toFixed(2),
     montoFinanciado: v.montoFinanciado.toFixed(2),
@@ -25,7 +26,7 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
     comisionPorcentaje: v.comisionPorcentaje.toFixed(2),
     comisionMonto: v.comisionMonto.toFixed(2),
     estatus: v.estatus,
-    fechaCierre: v.fechaCierre?.toISOString() ?? null,
+    fechaCierre: v.fechaCierre ? formatDateISO(v.fechaCierre) : null,
     notas: v.notas,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
@@ -71,8 +72,8 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
       id: p.id,
       ventaId: p.ventaId,
       monto: p.monto.toFixed(2),
-      fechaRegistro: p.fechaRegistro.toISOString(),
-      fechaPeriodo: p.fechaPeriodo?.toISOString() ?? null,
+      fechaRegistro: formatDateISO(p.fechaRegistro),
+      fechaPeriodo: p.fechaPeriodo ? formatDateISO(p.fechaPeriodo) : null,
       tipo: p.tipo,
       periodoMes: p.periodoMes,
       periodoAnio: p.periodoAnio,
@@ -89,10 +90,20 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
 export async function listVentas(filtros?: { estatus?: import("@prisma/client").EstatusVenta }) {
   const items = await prisma.venta.findMany({
     where: filtros?.estatus ? { estatus: filtros.estatus } : {},
-    include: { cliente: true, lote: { include: { manzana: true } }, vendedor: true },
+    include: { cliente: true, lote: { include: { manzana: true } }, vendedor: true, pagos: true },
     orderBy: { fechaVenta: "desc" },
   })
-  return items.map((v) => toVentaDTO(v))
+  return items.map((v) => {
+    const dto = toVentaDTO(v)
+    if (v.estatus === "ACTIVO") {
+      ;(dto as VentaDTOConProximoPago).proximoPago = formatDateISO(v.proximaFechaPago)
+    }
+    return dto
+  })
+}
+
+export interface VentaDTOConProximoPago extends VentaDTO {
+  proximoPago?: string | null
 }
 
 export async function getVenta(id: string) {
@@ -102,7 +113,7 @@ export async function getVenta(id: string) {
       cliente: true,
       lote: { include: { manzana: true } },
       vendedor: true,
-      pagos: { orderBy: { fechaRegistro: "asc" } },
+      pagos: { orderBy: [{ fechaRegistro: "desc" }, { createdAt: "desc" }] },
     },
   })
   return v ? toVentaDTO(v) : null
@@ -133,16 +144,11 @@ export async function listVentasConSemaforo(hoy: Date = new Date()): Promise<Ven
         diaPago: v.diaPago,
         plazoMeses: v.plazoMeses,
         mensualidadBase: v.mensualidadBase,
-        enganche: v.enganche,
-        precioTotal: v.precioTotal,
         interesMoratorioPorcentaje: v.interesMoratorioPorcentaje,
-        pagos: v.pagos.map((p) => ({
-          monto: p.monto,
-          tipo: p.tipo,
-          fechaRegistro: p.fechaRegistro,
-          periodoMes: p.periodoMes,
-          periodoAnio: p.periodoAnio,
-        })),
+        proximaFechaPago: v.proximaFechaPago,
+        saldoMensualidadActual: v.saldoMensualidadActual,
+        numeroMensualidadActual: v.numeroMensualidadActual,
+        saldoCapital: v.saldoCapital,
       },
       hoy,
     )
@@ -165,7 +171,7 @@ export async function listTraspasos() {
   })
   return items.map((t) => ({
     id: t.id,
-    fechaTraspaso: t.fechaTraspaso.toISOString(),
+    fechaTraspaso: formatDateISO(t.fechaTraspaso),
     costoTraspaso: t.costoTraspaso.toFixed(2),
     clienteAnterior: { id: t.clienteAnterior.id, nombre: t.clienteAnterior.nombre },
     clienteNuevo: { id: t.clienteNuevo.id, nombre: t.clienteNuevo.nombre },
@@ -183,7 +189,7 @@ export async function listRecuperaciones() {
   })
   return items.map((r) => ({
     id: r.id,
-    fechaRecuperacion: r.fechaRecuperacion.toISOString(),
+    fechaRecuperacion: formatDateISO(r.fechaRecuperacion),
     totalPagadoCliente: r.totalPagadoCliente.toFixed(2),
     porcentajeDevolucion: r.porcentajeDevolucion.toFixed(2),
     montoDevolucion: r.montoDevolucion.toFixed(2),

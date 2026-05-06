@@ -26,20 +26,33 @@ export function formatearMoneda(v: Decimal | string | number | null | undefined)
 
 export function formatearFecha(d: Date | string | null | undefined): string {
   if (!d) return "—"
-  const date = typeof d === "string" ? new Date(d) : d
+  let date: Date
+  if (typeof d === "string") {
+    // YYYY-MM-DD → mediodía UTC para evitar salto de día por timezone
+    date = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T12:00:00Z") : new Date(d)
+  } else {
+    date = d
+  }
   return new Intl.DateTimeFormat("es-MX", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   }).format(date)
 }
 
 export function formatearFechaCorta(d: Date | string | null | undefined): string {
   if (!d) return "—"
-  const date = typeof d === "string" ? new Date(d) : d
+  let date: Date
+  if (typeof d === "string") {
+    date = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T12:00:00Z") : new Date(d)
+  } else {
+    date = d
+  }
   return new Intl.DateTimeFormat("es-MX", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "UTC",
   }).format(date)
 }

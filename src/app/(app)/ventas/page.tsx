@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { listVentas } from "@/features/sales/queries"
+import type { VentaDTOConProximoPago } from "@/features/sales/queries"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -37,6 +38,7 @@ export default async function VentasPage() {
                 <TableHead className="hidden md:table-cell">Vendedor</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right hidden sm:table-cell">Mensualidad</TableHead>
+                <TableHead className="hidden lg:table-cell">Próximo pago</TableHead>
                 <TableHead>Estatus</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -50,12 +52,17 @@ export default async function VentasPage() {
                   <TableCell className="hidden md:table-cell text-xs">{v.vendedor?.nombre ?? "—"}</TableCell>
                   <TableCell className="text-right font-semibold">{formatearMoneda(v.precioTotal)}</TableCell>
                   <TableCell className="text-right hidden sm:table-cell">{formatearMoneda(v.mensualidadBase)}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-xs">
+                    {(v as VentaDTOConProximoPago).proximoPago
+                      ? formatearFecha((v as VentaDTOConProximoPago).proximoPago!)
+                      : "—"}
+                  </TableCell>
                   <TableCell><Badge variant={variant[v.estatus]}>{v.estatus}</Badge></TableCell>
                   <TableCell><Link href={`/ventas/${v.id}`} className="text-blue-600 text-sm hover:underline">Ver</Link></TableCell>
                 </TableRow>
               ))}
               {ventas.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Sin ventas. Crea una desde Inventario.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sin ventas. Crea una desde Inventario.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

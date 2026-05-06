@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatearMoneda, formatearFecha } from "@/lib/money"
+import { formatDateISO } from "@/lib/date"
 import { ArrowLeft } from "lucide-react"
 import { VentaDetalleClient } from "./venta-detalle-client"
+import { ComprobanteButton } from "@/components/ui/comprobante-button"
 import { getOptionalUser } from "@/lib/rbac"
 
 export const dynamic = "force-dynamic"
@@ -33,19 +35,15 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
     ? {
         saldoCapital: estado.saldoCapital.toFixed(2),
         totalDeuda: estado.totalDeuda.toFixed(2),
-        totalInteresMora: estado.totalInteresMora.toFixed(2),
+        moraPendiente: estado.moraPendiente.toFixed(2),
+        saldoMensualidadActual: estado.saldoMensualidadActual.toFixed(2),
+        numeroMensualidadActual: estado.numeroMensualidadActual,
         mensualidadesPagadas: estado.mensualidadesPagadas,
         mensualidadesPendientes: estado.mensualidadesPendientes,
-        proximoVencimiento: estado.proximoVencimiento?.toISOString() ?? null,
+        proximaFechaPago: formatDateISO(estado.proximaFechaPago),
+        diasAtraso: estado.diasAtraso,
         estaEnMora: estado.estaEnMora,
         liquidado: estado.liquidado,
-        mensualidadesVencidas: estado.mensualidadesVencidas.map((m) => ({
-          numero: m.numero,
-          fechaVencimiento: m.fechaVencimiento.toISOString(),
-          montoPendiente: m.montoPendiente.toFixed(2),
-          diasAtraso: m.diasAtraso,
-          interesMora: m.interesMora.toFixed(2),
-        })),
       }
     : null
 
@@ -68,7 +66,7 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
       {estadoSerializado && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiBox label="Saldo capital" value={formatearMoneda(estadoSerializado.saldoCapital)} />
-          <KpiBox label="Mora pendiente" value={formatearMoneda(estadoSerializado.totalInteresMora)} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
+          <KpiBox label="Mora acumulada" value={formatearMoneda(estadoSerializado.moraPendiente)} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
           <KpiBox label="Adeudo total" value={formatearMoneda(estadoSerializado.totalDeuda)} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
           <KpiBox label="Mensualidades" value={`${estadoSerializado.mensualidadesPagadas}/${venta.plazoMeses}`} />
         </div>
@@ -86,6 +84,7 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
                   <TableHead className="hidden sm:table-cell">Periodo</TableHead>
                   <TableHead>Mora</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className="hidden sm:table-cell">Comprobante</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -98,10 +97,11 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
                     </TableCell>
                     <TableCell className="text-xs">{p.diasMora ? `${p.diasMora}d` : "—"}</TableCell>
                     <TableCell className="text-right font-semibold">{formatearMoneda(p.monto)}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{p.comprobanteUrl ? <ComprobanteButton url={p.comprobanteUrl} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                   </TableRow>
                 ))}
                 {(!venta.pagos || venta.pagos.length === 0) && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Sin pagos</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Sin pagos</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

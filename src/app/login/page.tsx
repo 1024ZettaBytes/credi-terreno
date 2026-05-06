@@ -16,6 +16,7 @@ function LoginForm() {
   const [error, setError] = useState("")
   const params = useSearchParams()
   const callbackUrl = params.get("callbackUrl") ?? "/"
+  const reason = params.get("reason")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +64,11 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {reason === "session_expired" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                <p className="text-sm text-amber-700 text-center">Tu sesión expiró o el usuario ya no existe. Inicia sesión de nuevo.</p>
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3">
                 <p className="text-sm text-red-600 text-center">{error}</p>

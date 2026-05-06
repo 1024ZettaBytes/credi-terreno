@@ -3,6 +3,7 @@ import { listVentas } from "@/features/sales/queries"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatearMoneda, formatearFecha } from "@/lib/money"
+import { parseLocalDate } from "@/lib/date"
 import { Badge } from "@/components/ui/badge"
 
 export const dynamic = "force-dynamic"
@@ -11,8 +12,10 @@ export default async function ReportesPage(props: {
   searchParams: Promise<{ desde?: string; hasta?: string }>
 }) {
   const sp = await props.searchParams
-  const desde = sp.desde ? new Date(sp.desde) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-  const hasta = sp.hasta ? new Date(sp.hasta) : new Date()
+  const now = new Date()
+  const primerDiaMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+  const desde = sp.desde ? parseLocalDate(sp.desde) : parseLocalDate(primerDiaMes)
+  const hasta = sp.hasta ? parseLocalDate(sp.hasta) : parseLocalDate(now)
 
   const [pagos, ventas] = await Promise.all([
     listPagos({ desde, hasta }),
@@ -20,7 +23,7 @@ export default async function ReportesPage(props: {
   ])
 
   const ventasEnRango = ventas.filter((v) => {
-    const f = new Date(v.fechaVenta)
+    const f = parseLocalDate(v.fechaVenta)
     return f >= desde && f <= hasta
   })
 

@@ -1,5 +1,6 @@
 import "server-only"
 import prisma from "@/lib/prisma"
+import { formatDateISO } from "@/lib/date"
 import type { VendedorDTO, VentaDTO, LoteDTO, ClienteDTO } from "@/types"
 import { EstatusVenta } from "@prisma/client"
 import { Decimal } from "@prisma/client/runtime/library"
@@ -76,7 +77,7 @@ export async function getVendedorDetalle(vendedorId: string): Promise<VendedorDe
       loteId: v.loteId,
       clienteId: v.clienteId,
       vendedorId: v.vendedorId,
-      fechaVenta: v.fechaVenta.toISOString(),
+      fechaVenta: formatDateISO(v.fechaVenta),
       precioTotal: v.precioTotal.toFixed(2),
       enganche: v.enganche.toFixed(2),
       montoFinanciado: v.montoFinanciado.toFixed(2),
@@ -87,7 +88,7 @@ export async function getVendedorDetalle(vendedorId: string): Promise<VendedorDe
       comisionPorcentaje: v.comisionPorcentaje.toFixed(2),
       comisionMonto: v.comisionMonto.toFixed(2),
       estatus: v.estatus,
-      fechaCierre: v.fechaCierre?.toISOString() ?? null,
+      fechaCierre: v.fechaCierre ? formatDateISO(v.fechaCierre) : null,
       notas: v.notas,
       createdAt: v.createdAt.toISOString(),
       updatedAt: v.updatedAt.toISOString(),

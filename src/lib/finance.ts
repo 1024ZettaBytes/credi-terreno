@@ -19,20 +19,45 @@ export function calcularComision(
   return toDecimal(precioTotal).times(toDecimal(porcentaje)).dividedBy(100).toDecimalPlaces(2)
 }
 
-/** Construye la fecha de vencimiento de la mensualidad N (1-based) a partir de fechaVenta y diaPago */
+/**
+ * Construye la fecha de vencimiento de la mensualidad N (1-based).
+ * - Si en el mes de la venta el `diaPago` aún no ha pasado, la mensualidad #1 vence ese mismo mes.
+ * - Si ya pasó (o es el mismo día), la mensualidad #1 vence al mes siguiente.
+ */
 export function fechaVencimientoMensualidad(
   fechaVenta: Date,
   diaPago: number,
   numeroMensualidad: number,
 ): Date {
   const base = new Date(fechaVenta)
-  // El primer vencimiento es el siguiente mes después de la venta
-  const fecha = new Date(base.getFullYear(), base.getMonth() + numeroMensualidad, diaPago)
-  // Si el día no existe en el mes (ej. 31 en febrero), usar el último día
-  if (fecha.getMonth() !== (base.getMonth() + numeroMensualidad) % 12 + (fecha.getMonth() < base.getMonth() ? 12 : 0)) {
-    fecha.setDate(0)
+  // offset = 0 si el diaPago de este mes aún no ha llegado; 1 si ya pasó
+  const offset = base.getUTCDate() < diaPago ? 0 : 1
+  const mesObjetivo = base.getUTCMonth() + offset + (numeroMensualidad - 1)
+  const fecha = new Date(Date.UTC(base.getUTCFullYear(), mesObjetivo, diaPago, 12, 0, 0))
+  // Si el día no existe en el mes (ej. 31 en febrero), usar el último día del mes
+  const expectedMonth = ((mesObjetivo % 12) + 12) % 12
+  if (fecha.getUTCMonth() !== expectedMonth) {
+    fecha.setUTCDate(0)
   }
   return fecha
+}
+
+/**
+ * Mora diaria: tasa mensual / 30 × días de atraso, sobre el saldo del mes en curso.
+ *   mora = saldoMensualidadActual × (interesMensual/100) / 30 × diasAtraso
+ */
+export function calcularMoraDiaria(
+  saldoMensualidadActual: Decimal | string | number,
+  interesMoratorioPorcentaje: Decimal | string | number,
+  diasAtraso: number,
+): Decimal {
+  if (diasAtraso <= 0) return new Decimal(0)
+  return toDecimal(saldoMensualidadActual)
+    .times(toDecimal(interesMoratorioPorcentaje))
+    .dividedBy(100)
+    .dividedBy(30)
+    .times(diasAtraso)
+    .toDecimalPlaces(2)
 }
 
 export interface VentaParaCalculo {
@@ -40,148 +65,75 @@ export interface VentaParaCalculo {
   diaPago: number
   plazoMeses: number
   mensualidadBase: Decimal | string | number
-  enganche: Decimal | string | number
-  precioTotal: Decimal | string | number
   interesMoratorioPorcentaje: Decimal | string | number
-  pagos: Array<{
-    monto: Decimal | string | number
-    tipo: "ENGANCHE" | "MENSUALIDAD" | "ABONO_CAPITAL" | "MORATORIO" | "LIQUIDACION"
-    fechaRegistro: Date
-    periodoMes?: number | null
-    periodoAnio?: number | null
-  }>
+  proximaFechaPago: Date
+  saldoMensualidadActual: Decimal | string | number
+  numeroMensualidadActual: number
+  saldoCapital: Decimal | string | number
 }
 
 export interface EstadoCuenta {
-  precioTotal: Decimal
-  enganche: Decimal
-  montoFinanciado: Decimal
-  totalPagadoCapital: Decimal
-  totalPagadoMora: Decimal
   saldoCapital: Decimal
-  mensualidadesPagadas: number
-  mensualidadesPendientes: number
-  proximoVencimiento: Date | null
-  /** Mensualidades vencidas no pagadas */
-  mensualidadesVencidas: Array<{
-    numero: number
-    fechaVencimiento: Date
-    montoPendiente: Decimal
-    diasAtraso: number
-    interesMora: Decimal
-  }>
-  totalInteresMora: Decimal
+  saldoMensualidadActual: Decimal
+  numeroMensualidadActual: number
+  proximaFechaPago: Date
+  diasAtraso: number
+  moraPendiente: Decimal
   totalDeuda: Decimal
   estaEnMora: boolean
   liquidado: boolean
+  mensualidadesPagadas: number
+  mensualidadesPendientes: number
 }
 
-/**
- * Calcula el estado de cuenta de una venta a una fecha dada.
- * Mora = mensualidad * (interesMoratorioPorcentaje/100) por cada mes (o fracción) de atraso.
- * Esto coincide con la lectura del prompt: "interesMoratorioPorcentaje (ej. 5.0 para 5%)".
- */
+/** Calcula el estado de cuenta a partir de los campos vivos de la venta. */
 export function calcularEstadoCuenta(
   v: VentaParaCalculo,
   fechaCalculo: Date = new Date(),
 ): EstadoCuenta {
-  const precioTotal = toDecimal(v.precioTotal)
-  const enganche = toDecimal(v.enganche)
-  const mensualidadBase = toDecimal(v.mensualidadBase)
-  const tasaMora = toDecimal(v.interesMoratorioPorcentaje).dividedBy(100)
-  const montoFinanciado = precioTotal.minus(enganche)
+  const saldoCapital = toDecimal(v.saldoCapital)
+  const saldoMensualidadActual = toDecimal(v.saldoMensualidadActual)
+  const liquidado = saldoCapital.lessThanOrEqualTo(0)
 
-  let totalPagadoCapital = new Decimal(0)
-  let totalPagadoMora = new Decimal(0)
-  const pagosPorPeriodo = new Map<string, Decimal>()
+  const diasAtraso = liquidado
+    ? 0
+    : Math.max(
+        0,
+        Math.floor((fechaCalculo.getTime() - v.proximaFechaPago.getTime()) / 86_400_000),
+      )
 
-  for (const p of v.pagos) {
-    const m = toDecimal(p.monto)
-    if (p.tipo === "ENGANCHE") continue
-    if (p.tipo === "MORATORIO") {
-      totalPagadoMora = totalPagadoMora.plus(m)
-      continue
-    }
-    // MENSUALIDAD, ABONO_CAPITAL, LIQUIDACION suman a capital
-    totalPagadoCapital = totalPagadoCapital.plus(m)
-    if (p.periodoMes && p.periodoAnio) {
-      const k = `${p.periodoAnio}-${p.periodoMes}`
-      pagosPorPeriodo.set(k, (pagosPorPeriodo.get(k) ?? new Decimal(0)).plus(m))
-    }
-  }
+  const moraPendiente = liquidado
+    ? new Decimal(0)
+    : calcularMoraDiaria(saldoMensualidadActual, v.interesMoratorioPorcentaje, diasAtraso)
 
-  const saldoCapital = Decimal.max(montoFinanciado.minus(totalPagadoCapital), new Decimal(0))
-  const mensualidadesPagadas = mensualidadBase.greaterThan(0)
-    ? Math.min(v.plazoMeses, Math.floor(totalPagadoCapital.dividedBy(mensualidadBase).toNumber()))
-    : 0
+  const mensualidadesPagadas = Math.max(0, v.numeroMensualidadActual - 1)
   const mensualidadesPendientes = Math.max(0, v.plazoMeses - mensualidadesPagadas)
 
-  const mensualidadesVencidas: EstadoCuenta["mensualidadesVencidas"] = []
-  let totalInteresMora = new Decimal(0)
-  let proximoVencimiento: Date | null = null
-
-  for (let n = 1; n <= v.plazoMeses; n++) {
-    const venc = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, n)
-    const k = `${venc.getFullYear()}-${venc.getMonth() + 1}`
-    const pagadoEnPeriodo = pagosPorPeriodo.get(k) ?? new Decimal(0)
-    const pendiente = mensualidadBase.minus(pagadoEnPeriodo)
-
-    if (venc <= fechaCalculo && pendiente.greaterThan(0)) {
-      const diasAtraso = Math.max(
-        0,
-        Math.floor((fechaCalculo.getTime() - venc.getTime()) / 86_400_000),
-      )
-      // mora por mes (o fracción) de atraso
-      const mesesAtraso = Math.ceil(diasAtraso / 30) || 1
-      const interes = pendiente.times(tasaMora).times(mesesAtraso).toDecimalPlaces(2)
-      totalInteresMora = totalInteresMora.plus(interes)
-      mensualidadesVencidas.push({
-        numero: n,
-        fechaVencimiento: venc,
-        montoPendiente: pendiente,
-        diasAtraso,
-        interesMora: interes,
-      })
-    } else if (venc > fechaCalculo && proximoVencimiento === null) {
-      proximoVencimiento = venc
-    }
-  }
-
-  // restar lo ya pagado de mora
-  const moraPendiente = Decimal.max(totalInteresMora.minus(totalPagadoMora), new Decimal(0))
-  const totalDeuda = saldoCapital.plus(moraPendiente)
-  const liquidado = saldoCapital.lessThanOrEqualTo(0) && mensualidadesPendientes === 0
-
   return {
-    precioTotal,
-    enganche,
-    montoFinanciado,
-    totalPagadoCapital,
-    totalPagadoMora,
     saldoCapital,
+    saldoMensualidadActual,
+    numeroMensualidadActual: v.numeroMensualidadActual,
+    proximaFechaPago: v.proximaFechaPago,
+    diasAtraso,
+    moraPendiente,
+    totalDeuda: saldoCapital.plus(moraPendiente),
+    estaEnMora: diasAtraso > 0 && !liquidado,
+    liquidado,
     mensualidadesPagadas,
     mensualidadesPendientes,
-    proximoVencimiento,
-    mensualidadesVencidas,
-    totalInteresMora: moraPendiente,
-    totalDeuda,
-    estaEnMora: mensualidadesVencidas.length > 0,
-    liquidado,
   }
 }
 
 export type SemaforoColor = "VERDE" | "AMARILLO" | "ROJO"
 
-/** Verde: al corriente. Amarillo: vence en <=5 días o 1 mensualidad vencida. Rojo: 2+ vencidas. */
+/** Verde: al corriente. Amarillo: vence pronto o atraso leve. Rojo: 30+ días vencido. */
 export function semaforoCobranza(estado: EstadoCuenta, hoy: Date = new Date()): SemaforoColor {
   if (estado.liquidado) return "VERDE"
-  if (estado.mensualidadesVencidas.length >= 2) return "ROJO"
-  if (estado.mensualidadesVencidas.length === 1) return "AMARILLO"
-  if (estado.proximoVencimiento) {
-    const dias = Math.floor(
-      (estado.proximoVencimiento.getTime() - hoy.getTime()) / 86_400_000,
-    )
-    if (dias <= 5) return "AMARILLO"
-  }
+  if (estado.diasAtraso >= 30) return "ROJO"
+  if (estado.diasAtraso > 0) return "AMARILLO"
+  const dias = Math.floor(
+    (estado.proximaFechaPago.getTime() - hoy.getTime()) / 86_400_000,
+  )
+  if (dias <= 5) return "AMARILLO"
   return "VERDE"
 }

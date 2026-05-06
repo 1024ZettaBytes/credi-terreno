@@ -8,143 +8,307 @@ import { requireAdmin, requireUser } from "@/lib/rbac"
 import { uploadFile } from "@/lib/storage"
 import {
   calcularEstadoCuenta,
+  calcularMoraDiaria,
   fechaVencimientoMensualidad,
 } from "@/lib/finance"
+import { formatDateISO, parseLocalDate } from "@/lib/date"
 import { registrarPagoSchema } from "./schemas"
+import type { TipoPago } from "@prisma/client"
 
-/**
- * Registra un pago manual. Si el pago llega después del `diaPago`, calcula y
- * registra automáticamente el interés moratorio según `interesMoratorioPorcentaje`
- * de la venta (un cargo MORATORIO adicional).
- */
+/* ============================================================
+ * SIMULADOR DE DISTRIBUCIÓN — fuente única para preview y registro.
+ * ============================================================ */
+
+interface VentaSnapshot {
+  id: string
+  fechaVenta: Date
+  diaPago: number
+  plazoMeses: number
+  mensualidadBase: Decimal
+  interesMoratorioPorcentaje: Decimal
+  proximaFechaPago: Date
+  saldoMensualidadActual: Decimal
+  numeroMensualidadActual: number
+  saldoCapital: Decimal
+}
+
+export interface DistribucionItem {
+  tipo: TipoPago
+  monto: string
+  descripcion: string
+  periodoMes?: number | null
+  periodoAnio?: number | null
+  diasMora?: number | null
+}
+
+export interface DistribucionPago {
+  diasAtraso: number
+  moraDebida: string
+  items: DistribucionItem[]
+  totalAplicado: string
+  sobrante: string
+  saldoCapitalAntes: string
+  saldoCapitalDespues: string
+  mensualidadAntes: string
+  mensualidadDespues: string
+  saldoMensualidadActualDespues: string
+  numeroMensualidadActualDespues: number
+  proximaFechaPagoDespues: string
+  liquidaCredito: boolean
+}
+
+function simularDistribucion(
+  v: VentaSnapshot,
+  monto: Decimal,
+  fechaRegistro: Date,
+  tipo: TipoPago,
+  cobrarMoraAutomatica: boolean,
+): DistribucionPago {
+  const items: DistribucionItem[] = []
+  let restante = monto
+  let saldoMens = v.saldoMensualidadActual
+  let numMes = v.numeroMensualidadActual
+  let mensualidadBase = v.mensualidadBase
+  let proximaFechaPago = v.proximaFechaPago
+  let saldoCapital = v.saldoCapital
+
+  const diasAtraso = Math.max(
+    0,
+    Math.floor((fechaRegistro.getTime() - proximaFechaPago.getTime()) / 86_400_000),
+  )
+  const moraDebida = calcularMoraDiaria(saldoMens, v.interesMoratorioPorcentaje, diasAtraso)
+
+  const aplicarMora = () => {
+    if (moraDebida.lessThanOrEqualTo(0)) return
+    const aplicado = Decimal.min(restante, moraDebida)
+    if (aplicado.lessThanOrEqualTo(0)) return
+    items.push({
+      tipo: "MORATORIO",
+      monto: aplicado.toFixed(2),
+      descripcion: `Cargo moratorio (${diasAtraso} días)`,
+      diasMora: diasAtraso,
+    })
+    restante = restante.minus(aplicado)
+  }
+
+  const recalcMensualidad = () => {
+    const mesesRestantes = v.plazoMeses - (numMes - 1)
+    if (mesesRestantes <= 0 || saldoCapital.lessThanOrEqualTo(0)) {
+      saldoMens = new Decimal(0)
+      return
+    }
+    const pagadoEsteMes = mensualidadBase.minus(saldoMens)
+    const nuevaMens = saldoCapital.dividedBy(mesesRestantes).toDecimalPlaces(2)
+    mensualidadBase = nuevaMens
+    saldoMens = Decimal.max(nuevaMens.minus(pagadoEsteMes), new Decimal(0))
+  }
+
+  if (tipo === "MORATORIO") {
+    aplicarMora()
+  } else if (tipo === "LIQUIDACION") {
+    aplicarMora()
+    if (restante.greaterThan(0) && saldoCapital.greaterThan(0)) {
+      const liq = Decimal.min(restante, saldoCapital)
+      items.push({
+        tipo: "LIQUIDACION",
+        monto: liq.toFixed(2),
+        descripcion: "Liquidación de saldo capital",
+      })
+      restante = restante.minus(liq)
+      saldoCapital = saldoCapital.minus(liq)
+      saldoMens = new Decimal(0)
+    }
+  } else if (tipo === "MENSUALIDAD" || tipo === "ABONO_CAPITAL") {
+    // Cascada compartida: mora → mensualidad(es) → excedente a capital.
+    // ABONO_CAPITAL reusa el mismo flujo pero el excedente final se etiqueta como "Abono a capital".
+    if (cobrarMoraAutomatica) aplicarMora()
+
+    while (restante.greaterThan(0) && numMes <= v.plazoMeses && saldoCapital.greaterThan(0)) {
+      const aplicado = Decimal.min(restante, saldoMens, saldoCapital)
+      if (aplicado.lessThanOrEqualTo(0)) break
+      const fechaVenc =
+        numMes === v.numeroMensualidadActual
+          ? proximaFechaPago
+          : fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+      items.push({
+        tipo: "MENSUALIDAD",
+        monto: aplicado.toFixed(2),
+        descripcion: `Mensualidad #${numMes} (${formatDateISO(fechaVenc)})`,
+        periodoMes: fechaVenc.getUTCMonth() + 1,
+        periodoAnio: fechaVenc.getUTCFullYear(),
+      })
+      saldoMens = saldoMens.minus(aplicado)
+      saldoCapital = saldoCapital.minus(aplicado)
+      restante = restante.minus(aplicado)
+      if (saldoMens.lessThanOrEqualTo(0)) {
+        numMes += 1
+        if (numMes <= v.plazoMeses) {
+          saldoMens = mensualidadBase
+          proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+        } else {
+          saldoMens = new Decimal(0)
+        }
+      }
+      // En modo ABONO_CAPITAL solo cubrimos una mensualidad; el resto va a capital.
+      if (tipo === "ABONO_CAPITAL") break
+    }
+
+    if (restante.greaterThan(0) && saldoCapital.greaterThan(0)) {
+      const aplicado = Decimal.min(restante, saldoCapital)
+      items.push({
+        tipo: "ABONO_CAPITAL",
+        monto: aplicado.toFixed(2),
+        descripcion: tipo === "ABONO_CAPITAL" ? "Abono a capital" : "Excedente abonado a capital",
+      })
+      saldoCapital = saldoCapital.minus(aplicado)
+      restante = restante.minus(aplicado)
+      recalcMensualidad()
+    }
+  }
+
+  const totalAplicado = monto.minus(restante)
+  const liquida = saldoCapital.lessThanOrEqualTo(0)
+
+  return {
+    diasAtraso,
+    moraDebida: moraDebida.toFixed(2),
+    items,
+    totalAplicado: totalAplicado.toFixed(2),
+    sobrante: restante.toFixed(2),
+    saldoCapitalAntes: v.saldoCapital.toFixed(2),
+    saldoCapitalDespues: Decimal.max(saldoCapital, new Decimal(0)).toFixed(2),
+    mensualidadAntes: v.mensualidadBase.toFixed(2),
+    mensualidadDespues: mensualidadBase.toFixed(2),
+    saldoMensualidadActualDespues: saldoMens.toFixed(2),
+    numeroMensualidadActualDespues: Math.min(numMes, v.plazoMeses + 1),
+    proximaFechaPagoDespues: formatDateISO(proximaFechaPago),
+    liquidaCredito: liquida,
+  }
+}
+
+function ventaToSnapshot(v: {
+  id: string
+  fechaVenta: Date
+  diaPago: number
+  plazoMeses: number
+  mensualidadBase: import("decimal.js").Decimal
+  interesMoratorioPorcentaje: import("decimal.js").Decimal
+  proximaFechaPago: Date
+  saldoMensualidadActual: import("decimal.js").Decimal
+  numeroMensualidadActual: number
+  saldoCapital: import("decimal.js").Decimal
+}): VentaSnapshot {
+  return {
+    id: v.id,
+    fechaVenta: v.fechaVenta,
+    diaPago: v.diaPago,
+    plazoMeses: v.plazoMeses,
+    mensualidadBase: toDecimal(v.mensualidadBase),
+    interesMoratorioPorcentaje: toDecimal(v.interesMoratorioPorcentaje),
+    proximaFechaPago: v.proximaFechaPago,
+    saldoMensualidadActual: toDecimal(v.saldoMensualidadActual),
+    numeroMensualidadActual: v.numeroMensualidadActual,
+    saldoCapital: toDecimal(v.saldoCapital),
+  }
+}
+
+/* ============================================================
+ * PUBLIC ACTIONS
+ * ============================================================ */
+
+export async function previewPago(
+  ventaId: string,
+  monto: number,
+  fechaRegistro: Date,
+  tipo: TipoPago,
+  cobrarMoraAutomatica: boolean,
+): Promise<DistribucionPago | null> {
+  if (!Number.isFinite(monto) || monto <= 0) return null
+  const venta = await prisma.venta.findUnique({ where: { id: ventaId } })
+  if (!venta || venta.estatus !== "ACTIVO") return null
+  return simularDistribucion(
+    ventaToSnapshot(venta),
+    new Decimal(monto),
+    fechaRegistro,
+    tipo,
+    cobrarMoraAutomatica,
+  )
+}
+
 export async function registerPayment(
   input: unknown,
-): Promise<ActionResult<{ pagoId: string; moraPagoId: string | null; diasMora: number; montoMora: string }>> {
+): Promise<ActionResult<{ distribucion: DistribucionPago }>> {
   const user = await requireUser()
   const parsed = registrarPagoSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const data = parsed.data
 
-  const venta = await prisma.venta.findUnique({
-    where: { id: data.ventaId },
-    include: { pagos: true },
-  })
+  const venta = await prisma.venta.findUnique({ where: { id: data.ventaId } })
   if (!venta) return fail("Venta no encontrada")
   if (venta.estatus !== "ACTIVO") return fail("Solo se aceptan pagos en ventas ACTIVAS")
 
   const monto = toDecimal(data.monto)
-  const tasaMora = toDecimal(venta.interesMoratorioPorcentaje).dividedBy(100)
+  const dist = simularDistribucion(
+    ventaToSnapshot(venta),
+    monto,
+    data.fechaRegistro,
+    data.tipo,
+    data.cobrarMoraAutomatica,
+  )
 
-  // Determinar fecha del periodo: si no viene mes/año, usar la siguiente mensualidad pendiente
-  let periodoMes = data.periodoMes ?? null
-  let periodoAnio = data.periodoAnio ?? null
-  let fechaPeriodo: Date | null = null
-  let diasMora = 0
-  let montoMora = new Decimal(0)
-  let aplicaMora = false
-
-  if (data.tipo === "MENSUALIDAD") {
-    if (!periodoMes || !periodoAnio) {
-      // próximo periodo no cubierto
-      const cubiertos = new Set(
-        venta.pagos
-          .filter((p) => p.tipo === "MENSUALIDAD" && p.periodoMes && p.periodoAnio)
-          .map((p) => `${p.periodoAnio}-${p.periodoMes}`),
-      )
-      for (let n = 1; n <= venta.plazoMeses; n++) {
-        const venc = fechaVencimientoMensualidad(venta.fechaVenta, venta.diaPago, n)
-        const k = `${venc.getFullYear()}-${venc.getMonth() + 1}`
-        if (!cubiertos.has(k)) {
-          periodoMes = venc.getMonth() + 1
-          periodoAnio = venc.getFullYear()
-          fechaPeriodo = venc
-          break
-        }
-      }
-    } else {
-      // construir fechaPeriodo desde mes/año + diaPago
-      fechaPeriodo = new Date(periodoAnio, periodoMes - 1, venta.diaPago)
-    }
-
-    if (fechaPeriodo && data.fechaRegistro > fechaPeriodo) {
-      diasMora = Math.floor(
-        (data.fechaRegistro.getTime() - fechaPeriodo.getTime()) / 86_400_000,
-      )
-      if (diasMora > 0 && data.cobrarMoraAutomatica) {
-        const mesesAtraso = Math.ceil(diasMora / 30) || 1
-        montoMora = toDecimal(venta.mensualidadBase)
-          .times(tasaMora)
-          .times(mesesAtraso)
-          .toDecimalPlaces(2)
-        aplicaMora = montoMora.greaterThan(0)
-      }
-    }
+  if (dist.items.length === 0) {
+    return fail("El pago no aplica a ningún rubro")
+  }
+  if (Number(dist.sobrante) > 0.005) {
+    return fail(`El crédito ya está cubierto. Sobran $${dist.sobrante}. Reduce el monto.`)
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const pago = await tx.pago.create({
-        data: {
-          ventaId: data.ventaId,
-          monto: monto.toFixed(2),
-          fechaRegistro: data.fechaRegistro,
-          fechaPeriodo,
-          tipo: data.tipo,
-          periodoMes,
-          periodoAnio,
-          diasMora: diasMora || null,
-          comprobanteUrl: data.comprobanteUrl || null,
-          notas: data.notas || null,
-          registradoPorId: user.id,
-        },
-      })
-
-      let moraPago = null
-      if (aplicaMora) {
-        moraPago = await tx.pago.create({
+    await prisma.$transaction(async (tx) => {
+      for (const item of dist.items) {
+        const fechaPeriodo =
+          item.periodoMes && item.periodoAnio
+            ? new Date(Date.UTC(item.periodoAnio, item.periodoMes - 1, venta.diaPago, 12, 0, 0))
+            : null
+        await tx.pago.create({
           data: {
             ventaId: data.ventaId,
-            monto: montoMora.toFixed(2),
+            monto: item.monto,
+            tipo: item.tipo,
             fechaRegistro: data.fechaRegistro,
             fechaPeriodo,
-            tipo: "MORATORIO",
-            periodoMes,
-            periodoAnio,
-            diasMora,
-            notas: `Cargo moratorio automático (${diasMora} días de atraso)`,
+            periodoMes: item.periodoMes ?? null,
+            periodoAnio: item.periodoAnio ?? null,
+            diasMora: item.diasMora ?? null,
+            comprobanteUrl: data.comprobanteUrl || null,
+            notas: data.notas || null,
             registradoPorId: user.id,
           },
         })
       }
-
-      // Si fue LIQUIDACION o queda en cero el saldo, marcar venta liquidada
-      if (data.tipo === "LIQUIDACION") {
-        await tx.venta.update({
-          where: { id: data.ventaId },
-          data: { estatus: "LIQUIDADO", fechaCierre: data.fechaRegistro },
-        })
-      }
-      return { pago, moraPago }
+      await tx.venta.update({
+        where: { id: data.ventaId },
+        data: {
+          mensualidadBase: dist.mensualidadDespues,
+          saldoMensualidadActual: dist.saldoMensualidadActualDespues,
+          saldoCapital: dist.saldoCapitalDespues,
+          proximaFechaPago: parseLocalDate(dist.proximaFechaPagoDespues),
+          numeroMensualidadActual: dist.numeroMensualidadActualDespues,
+          estatus: dist.liquidaCredito ? "LIQUIDADO" : "ACTIVO",
+          fechaCierre: dist.liquidaCredito ? data.fechaRegistro : null,
+        },
+      })
     })
 
     revalidatePath("/pagos")
     revalidatePath(`/ventas/${data.ventaId}`)
     revalidatePath("/")
-    return ok({
-      pagoId: result.pago.id,
-      moraPagoId: result.moraPago?.id ?? null,
-      diasMora,
-      montoMora: montoMora.toFixed(2),
-    })
+    return ok({ distribucion: dist })
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Error al registrar pago")
   }
 }
 
-/**
- * Sube un comprobante (imagen del voucher) y devuelve la URL para guardarse en el pago.
- * Dummy storage por ahora.
- */
 export async function uploadComprobante(
   ventaId: string,
   file: File,
@@ -165,70 +329,19 @@ export async function deletePago(pagoId: string): Promise<ActionResult<null>> {
   return ok(null)
 }
 
-export async function previewMora(
-  ventaId: string,
-  fechaRegistro: Date,
-  periodoMes?: number | null,
-  periodoAnio?: number | null,
-): Promise<{ diasMora: number; montoMora: string } | null> {
-  const venta = await prisma.venta.findUnique({
-    where: { id: ventaId },
-    include: { pagos: true },
-  })
-  if (!venta) return null
-  let fechaPeriodo: Date | null = null
-  if (periodoMes && periodoAnio) {
-    fechaPeriodo = new Date(periodoAnio, periodoMes - 1, venta.diaPago)
-  } else {
-    const cubiertos = new Set(
-      venta.pagos
-        .filter((p) => p.tipo === "MENSUALIDAD" && p.periodoMes && p.periodoAnio)
-        .map((p) => `${p.periodoAnio}-${p.periodoMes}`),
-    )
-    for (let n = 1; n <= venta.plazoMeses; n++) {
-      const venc = fechaVencimientoMensualidad(venta.fechaVenta, venta.diaPago, n)
-      const k = `${venc.getFullYear()}-${venc.getMonth() + 1}`
-      if (!cubiertos.has(k)) {
-        fechaPeriodo = venc
-        break
-      }
-    }
-  }
-  if (!fechaPeriodo || fechaRegistro <= fechaPeriodo) {
-    return { diasMora: 0, montoMora: "0.00" }
-  }
-  const diasMora = Math.floor(
-    (fechaRegistro.getTime() - fechaPeriodo.getTime()) / 86_400_000,
-  )
-  const mesesAtraso = Math.ceil(diasMora / 30) || 1
-  const monto = toDecimal(venta.mensualidadBase)
-    .times(toDecimal(venta.interesMoratorioPorcentaje).dividedBy(100))
-    .times(mesesAtraso)
-    .toDecimalPlaces(2)
-  return { diasMora, montoMora: monto.toFixed(2) }
-}
-
-// Re-export del helper de cálculo para conveniencia
+/** Estado de cuenta desde los campos vivos de la venta. */
 export async function getEstadoCuenta(ventaId: string) {
-  const v = await prisma.venta.findUnique({
-    where: { id: ventaId },
-    include: { pagos: true },
-  })
+  const v = await prisma.venta.findUnique({ where: { id: ventaId } })
   if (!v) return null
   return calcularEstadoCuenta({
     fechaVenta: v.fechaVenta,
     diaPago: v.diaPago,
     plazoMeses: v.plazoMeses,
     mensualidadBase: v.mensualidadBase,
-    enganche: v.enganche,
-    precioTotal: v.precioTotal,
     interesMoratorioPorcentaje: v.interesMoratorioPorcentaje,
-    pagos: v.pagos.map((p) => ({
-      monto: p.monto,
-      tipo: p.tipo,
-      fechaRegistro: p.fechaRegistro,
-      periodoMes: p.periodoMes,
-      periodoAnio: p.periodoAnio,
-    })),
+    proximaFechaPago: v.proximaFechaPago,
+    saldoMensualidadActual: v.saldoMensualidadActual,
+    numeroMensualidadActual: v.numeroMensualidadActual,
+    saldoCapital: v.saldoCapital,
   })
 }
