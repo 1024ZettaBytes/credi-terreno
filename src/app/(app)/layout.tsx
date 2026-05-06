@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { requireUser } from "@/lib/rbac"
-import { Navigation, Footer } from "@/components/layout/navigation"
+import { Sidebar, MobileHeader, Footer } from "@/components/layout/navigation"
 import prisma from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
@@ -17,10 +17,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <>
-      <Navigation userRole={user.role} userName={user.name} />
-      <main className="flex-1">{children}</main>
-      <Footer />
-    </>
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar userRole={user.role} userName={user.name} />
+      <div className="flex flex-col flex-1 overflow-y-auto">
+        <MobileHeader userRole={user.role} userName={user.name} />
+        <main className="flex-1 p-4 lg:p-6">{children}</main>
+        <Footer />
+      </div>
+    </div>
   )
 }
