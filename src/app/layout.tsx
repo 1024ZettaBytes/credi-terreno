@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrediTerreno",
+  title: "Credi-Terreno",
   description: "Sistema de gestión de créditos inmobiliarios",
 };
 

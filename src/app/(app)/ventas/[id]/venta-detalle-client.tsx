@@ -76,6 +76,7 @@ export function VentaDetalleClient({
   const [openTraspaso, setOpenTraspaso] = useState(false);
   const [openRecuperacion, setOpenRecuperacion] = useState(false);
   const isAdmin = userRole === "ADMIN";
+  const canEdit = userRole === "ADMIN" || userRole === "CAPTURA";
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -114,7 +115,7 @@ export function VentaDetalleClient({
         </Card>
       )}
 
-      {isActiva && (
+      {isActiva && canEdit && (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setOpenPago(true)}>
             <DollarSign className="h-4 w-4" /> Registrar pago

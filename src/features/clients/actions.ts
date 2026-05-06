@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin, requireUser } from "@/lib/rbac"
+import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { clienteSchema } from "./schemas"
 import { uploadFile } from "@/lib/storage"
 
@@ -16,7 +16,7 @@ function clean<T extends Record<string, unknown>>(input: T): T {
 }
 
 export async function createCliente(input: unknown): Promise<ActionResult<{ id: string }>> {
-  await requireUser()
+  await requireCaptura()
   const parsed = clienteSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   try {
@@ -29,7 +29,7 @@ export async function createCliente(input: unknown): Promise<ActionResult<{ id: 
 }
 
 export async function updateCliente(id: string, input: unknown): Promise<ActionResult<null>> {
-  await requireUser()
+  await requireCaptura()
   const parsed = clienteSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   await prisma.cliente.update({ where: { id }, data: clean(parsed.data) })
@@ -55,7 +55,7 @@ export async function addExpedienteFile(
   clienteId: string,
   file: File,
 ): Promise<ActionResult<{ url: string }>> {
-  await requireUser()
+  await requireCaptura()
   if (!file || file.size === 0) return fail("Archivo inválido")
 
   const uploaded = await uploadFile(file, { folder: "expedientes", prefix: clienteId })
@@ -71,7 +71,7 @@ export async function removeExpedienteFile(
   clienteId: string,
   url: string,
 ): Promise<ActionResult<null>> {
-  await requireUser()
+  await requireCaptura()
   const c = await prisma.cliente.findUnique({ where: { id: clienteId } })
   if (!c) return fail("Cliente no encontrado")
   await prisma.cliente.update({

@@ -24,9 +24,11 @@ import {
   removeExpedienteFile,
 } from "@/features/clients/actions"
 import type { ClienteDTO } from "@/types"
+import type { UserRole } from "@prisma/client"
 import { veriFyFileSize } from "@/lib/utils"
 
-export function ClientesClient({ clientes }: { clientes: ClienteDTO[] }) {
+export function ClientesClient({ clientes, userRole }: { clientes: ClienteDTO[]; userRole: UserRole }) {
+  const canEdit = userRole === "ADMIN" || userRole === "CAPTURA"
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<ClienteDTO | null>(null)
@@ -47,9 +49,11 @@ export function ClientesClient({ clientes }: { clientes: ClienteDTO[] }) {
           <h1 className="text-2xl md:text-3xl font-bold">Clientes</h1>
           <p className="text-sm text-muted-foreground">{clientes.length} registrados</p>
         </div>
-        <Button onClick={() => { setEditing(null); setOpen(true) }}>
-          <Plus className="h-4 w-4" /> Nuevo cliente
-        </Button>
+        {canEdit && (
+          <Button onClick={() => { setEditing(null); setOpen(true) }}>
+            <Plus className="h-4 w-4" /> Nuevo cliente
+          </Button>
+        )}
       </div>
 
       <Input
@@ -79,9 +83,11 @@ export function ClientesClient({ clientes }: { clientes: ClienteDTO[] }) {
                 <Button size="sm" variant="outline" onClick={() => setExpediente(c)}>
                   <FileText className="h-3 w-3" /> Expediente ({c.expediente.length})
                 </Button>
-                <Button size="icon" variant="ghost" onClick={() => { setEditing(c); setOpen(true) }}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
+                {canEdit && (
+                  <Button size="icon" variant="ghost" onClick={() => { setEditing(c); setOpen(true) }}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

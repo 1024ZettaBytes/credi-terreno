@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
 import { Decimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin, requireUser } from "@/lib/rbac"
+import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { manzanaSchema, loteSchema } from "./schemas"
 
 export async function createManzana(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -41,7 +41,7 @@ export async function deleteManzana(id: string): Promise<ActionResult<null>> {
 }
 
 export async function createLote(input: unknown): Promise<ActionResult<{ id: string }>> {
-  await requireUser()
+  await requireCaptura()
   const parsed = loteSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const { superficieM2, precioM2, ...rest } = parsed.data
@@ -65,7 +65,7 @@ export async function createLote(input: unknown): Promise<ActionResult<{ id: str
 }
 
 export async function updateLote(id: string, input: unknown): Promise<ActionResult<null>> {
-  await requireUser()
+  await requireCaptura()
   const parsed = loteSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const { superficieM2, precioM2, ...rest } = parsed.data

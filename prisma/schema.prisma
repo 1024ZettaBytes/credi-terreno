@@ -1,4 +1,4 @@
-// Prisma Schema - CrediTerreno
+// Prisma Schema - Credi-Terreno
 // Sistema profesional de administración de terrenos y créditos.
 // Clean Architecture + Features. Decimal para precisión financiera.
 
@@ -19,7 +19,7 @@ model User {
   username  String   @unique
   password  String
   name      String?
-  role      UserRole @default(USER)
+  role      UserRole @default(CAPTURA)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -32,7 +32,8 @@ model User {
 
 enum UserRole {
   ADMIN
-  USER
+  CAPTURA
+  VISUALIZACION
 }
 
 // ============================================================

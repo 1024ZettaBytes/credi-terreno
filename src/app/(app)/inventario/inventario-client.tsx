@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Plus, Edit2, Trash2, Layers, MapPin, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ import {
 } from "@/features/inventory/actions"
 import { createVenta } from "@/features/sales/actions"
 import type { ManzanaDTO, LoteDTO, ClienteDTO, VendedorDTO, EstatusLote } from "@/types"
+import type { UserRole } from "@prisma/client"
 
 const estatusColor: Record<EstatusLote, "success" | "warning" | "destructive" | "secondary"> = {
   DISPONIBLE: "success",
@@ -50,9 +52,12 @@ interface Props {
   lotes: LoteDTO[]
   clientes: ClienteDTO[]
   vendedores: VendedorDTO[]
+  userRole: UserRole
 }
 
-export function InventarioClient({ manzanas, lotes, clientes, vendedores }: Props) {
+export function InventarioClient({ manzanas, lotes, clientes, vendedores, userRole }: Props) {
+  const canEdit = userRole === "ADMIN" || userRole === "CAPTURA"
+  const isAdmin = userRole === "ADMIN"
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [filtroManzana, setFiltroManzana] = useState<string>("")
@@ -77,14 +82,16 @@ export function InventarioClient({ manzanas, lotes, clientes, vendedores }: Prop
           <h1 className="text-2xl md:text-3xl font-bold">Inventario</h1>
           <p className="text-sm text-muted-foreground">Manzanas y lotes</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { setEditManzana(null); setOpenManzana(true) }}>
-            <Layers className="h-4 w-4" /> Nueva manzana
-          </Button>
-          <Button onClick={() => { setEditLote(null); setOpenLote(true) }}>
-            <Plus className="h-4 w-4" /> Nuevo lote
-          </Button>
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setEditManzana(null); setOpenManzana(true) }}>
+              <Layers className="h-4 w-4" /> Nueva manzana
+            </Button>
+            <Button onClick={() => { setEditLote(null); setOpenLote(true) }}>
+              <Plus className="h-4 w-4" /> Nuevo lote
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Manzanas */}
@@ -102,25 +109,29 @@ export function InventarioClient({ manzanas, lotes, clientes, vendedores }: Prop
                     <p className="text-xs text-muted-foreground">{m.totalLotes ?? 0} lotes</p>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 flex gap-1">
-                    <button
-                      className="text-slate-500 hover:text-slate-900"
-                      onClick={() => { setEditManzana(m); setOpenManzana(true) }}
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </button>
-                    <button
-                      className="text-red-500 hover:text-red-700"
-                      onClick={() => {
-                        if (!confirm(`Eliminar manzana ${m.nombre}?`)) return
-                        startTransition(async () => {
-                          const r = await deleteManzana(m.id)
-                          if (!r.ok) alert(r.error)
-                          router.refresh()
-                        })
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    {canEdit && (
+                      <button
+                        className="text-slate-500 hover:text-slate-900"
+                        onClick={() => { setEditManzana(m); setOpenManzana(true) }}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => {
+                          if (!confirm(`Eliminar manzana ${m.nombre}?`)) return
+                          startTransition(async () => {
+                            const r = await deleteManzana(m.id)
+                            if (!r.ok) alert(r.error)
+                            router.refresh()
+                          })
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -193,18 +204,20 @@ export function InventarioClient({ manzanas, lotes, clientes, vendedores }: Prop
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
-                      {(l.estatus === "DISPONIBLE" || l.estatus === "RECUPERADO") && (
+                      {canEdit && (l.estatus === "DISPONIBLE" || l.estatus === "RECUPERADO") && (
                         <Button size="sm" variant="default" onClick={() => setOpenVender(l)}>
                           Vender
                         </Button>
                       )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => { setEditLote(l); setOpenLote(true) }}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => { setEditLote(l); setOpenLote(true) }}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -357,6 +370,14 @@ function LoteDialog({
           <DialogDescription>Total se calcula: superficie × precio/m²</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
+          {manzanas.length === 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-800">
+                No hay manzanas registradas. <Link href="/inventario" className="underline font-medium">Crea una manzana</Link> primero.
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Manzana</Label>
             <Select value={form.manzanaId} onValueChange={(v) => setForm({ ...form, manzanaId: v })}>
@@ -479,6 +500,14 @@ function VenderDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
+          {clientes.length === 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-800">
+                No hay clientes registrados. <Link href="/clientes" className="underline font-medium">Registra un cliente</Link> primero.
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Cliente</Label>
             <Select value={form.clienteId} onValueChange={(v) => setForm({ ...form, clienteId: v })}>

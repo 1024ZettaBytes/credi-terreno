@@ -3,7 +3,8 @@
 import { useState, Suspense } from "react"
 import { signIn } from "next-auth/react"
 import { useSearchParams } from "next/navigation"
-import { Building, Lock, Mail, Eye, EyeOff } from "lucide-react"
+import { Lock, Eye, EyeOff, User } from "lucide-react"
+import { LogoIcon } from "@/components/ui/logo-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,12 +51,10 @@ function LoginForm() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="bg-primary rounded-full p-3">
-              <Building className="h-8 w-8 text-primary-foreground" />
-            </div>
+            <LogoIcon size={100} />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">CrediTerreno</CardTitle>
+            <CardTitle className="text-2xl font-bold">Credi-Terreno</CardTitle>
             <CardDescription className="mt-2">
               Sistema de Gestión de Créditos Inmobiliarios
             </CardDescription>
@@ -78,7 +77,7 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="username">Usuario</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="username"
                   type="text"
@@ -118,7 +117,7 @@ function LoginForm() {
 
           <CardFooter className="flex flex-col gap-2">
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Iniciando..." : "Iniciar Sesión"}
+              {isLoading ? "INICIANDO..." : "INICIAR SESIÓN"}
             </Button>
             <p className="text-xs text-muted-foreground text-center">
               Solo personal autorizado.

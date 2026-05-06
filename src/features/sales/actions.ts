@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
 import { Decimal, toDecimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin, requireUser } from "@/lib/rbac"
+import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { calcularComision, calcularMensualidadBase, fechaVencimientoMensualidad } from "@/lib/finance"
 import { parseLocalDate } from "@/lib/date"
 import { ventaSchema, traspasoSchema, recuperacionSchema } from "./schemas"
@@ -23,7 +23,7 @@ function toFriendlyDbError(e: unknown, fallback: string): string {
 }
 
 export async function createVenta(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const user = await requireUser()
+  const user = await requireCaptura()
   console.log("Usuario en createVenta:", user); // DEBUG
   const userExists = await prisma.user.findUnique({
     where: { id: user.id },
@@ -127,7 +127,7 @@ export async function cancelarVenta(ventaId: string): Promise<ActionResult<null>
 }
 
 export async function liquidarVenta(ventaId: string): Promise<ActionResult<null>> {
-  await requireUser()
+  await requireCaptura()
   const venta = await prisma.venta.findUnique({ where: { id: ventaId } })
   if (!venta) return fail("Venta no encontrada")
   if (venta.estatus !== "ACTIVO") return fail("Solo ventas activas pueden liquidarse")

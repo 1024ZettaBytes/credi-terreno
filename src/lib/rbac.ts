@@ -20,7 +20,21 @@ export async function requireAdmin() {
   return requireRole(["ADMIN"])
 }
 
+/** Requires ADMIN or CAPTURA — blocks VISUALIZACION from write operations */
+export async function requireCaptura() {
+  return requireRole(["ADMIN", "CAPTURA"])
+}
+
 export async function getOptionalUser() {
   const session = await auth()
   return session?.user ?? null
+}
+
+/** Check if user can perform write actions (useful in client components) */
+export function canWrite(role: UserRole): boolean {
+  return role === "ADMIN" || role === "CAPTURA"
+}
+
+export function isAdmin(role: UserRole): boolean {
+  return role === "ADMIN"
 }

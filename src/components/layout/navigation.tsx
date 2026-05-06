@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import {
-  Building,
   Layers,
   Users,
   FileText,
@@ -21,6 +20,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo-icon";
+import type { UserRole } from "@prisma/client";
 
 interface NavItem {
   href: string;
@@ -51,13 +52,19 @@ const navItems: NavItem[] = [
   { href: "/reportes", label: "Reportes", icon: BarChart3, adminOnly: true },
 ];
 
+const roleLabel: Record<UserRole, string> = {
+  ADMIN: "Admin",
+  CAPTURA: "Captura",
+  VISUALIZACION: "Solo lectura",
+};
+
 interface NavigationProps {
-  userRole?: "ADMIN" | "USER";
+  userRole?: UserRole;
   userName?: string | null;
 }
 
 /* ─── Desktop Sidebar ─── */
-export function Sidebar({ userRole = "USER", userName }: NavigationProps) {
+export function Sidebar({ userRole = "CAPTURA", userName }: NavigationProps) {
   const pathname = usePathname();
   const visibleItems = navItems.filter(
     (i) => !i.adminOnly || userRole === "ADMIN",
@@ -71,11 +78,11 @@ export function Sidebar({ userRole = "USER", userName }: NavigationProps) {
   return (
     <aside className="hidden lg:flex flex-col w-56 shrink-0 h-screen sticky top-0 border-r border-slate-200 bg-white">
       <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-100">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground">
-          <Building className="h-5 w-5" />
+        <div className="flex items-center justify-center rounded-lg">
+          <LogoIcon className="h-10 w-10" size={100} />
         </div>
         <div>
-          <h1 className="text-sm font-bold leading-tight">CrediTerreno</h1>
+          <h1 className="text-sm font-bold leading-tight">Credi-Terreno</h1>
           <p className="text-[10px] text-muted-foreground leading-tight">
             Gestión de Créditos
           </p>
@@ -107,7 +114,7 @@ export function Sidebar({ userRole = "USER", userName }: NavigationProps) {
       <div className="border-t border-slate-100 px-4 py-3">
         {userName && (
           <p className="text-xs text-muted-foreground mb-2 truncate">
-            {userName} · {userRole}
+            {userName} · {roleLabel[userRole]}
           </p>
         )}
 
@@ -124,7 +131,7 @@ export function Sidebar({ userRole = "USER", userName }: NavigationProps) {
 }
 
 /* ─── Mobile Top Bar ─── */
-export function MobileHeader({ userRole = "USER", userName }: NavigationProps) {
+export function MobileHeader({ userRole = "CAPTURA", userName }: NavigationProps) {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -141,10 +148,10 @@ export function MobileHeader({ userRole = "USER", userName }: NavigationProps) {
     <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-sm lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground">
-            <Building className="h-5 w-5" />
+          <div className="flex items-center justify-center rounded-lg text-primary-foreground">
+            <LogoIcon className="h-10 w-10" />
           </div>
-          <span className="font-bold text-sm">CrediTerreno</span>
+          <span className="font-bold text-sm">Credi-Terreno</span>
         </Link>
 
         <Button
@@ -195,7 +202,7 @@ export function MobileHeader({ userRole = "USER", userName }: NavigationProps) {
           </div>
           {userName && (
             <p className="mt-3 px-4 text-xs text-muted-foreground">
-              {userName} · {userRole}
+              {userName} · {roleLabel[userRole]}
             </p>
           )}
         </nav>
@@ -208,7 +215,7 @@ export function Footer() {
   return (
     <footer className="mt-auto bg-white border-t border-slate-200">
       <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} CrediTerreno · Sistema de Gestión de
+        © {new Date().getFullYear()} Credi-Terreno · Sistema de Gestión de
         Créditos Inmobiliarios
       </div>
     </footer>

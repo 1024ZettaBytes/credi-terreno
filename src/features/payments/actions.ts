@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
 import { Decimal, toDecimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin, requireUser } from "@/lib/rbac"
+import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { uploadFile } from "@/lib/storage"
 import {
   calcularEstadoCuenta,
@@ -238,7 +238,7 @@ export async function previewPago(
 export async function registerPayment(
   input: unknown,
 ): Promise<ActionResult<{ distribucion: DistribucionPago }>> {
-  const user = await requireUser()
+  const user = await requireCaptura()
   const parsed = registrarPagoSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const data = parsed.data
@@ -313,7 +313,7 @@ export async function uploadComprobante(
   ventaId: string,
   file: File,
 ): Promise<ActionResult<{ url: string }>> {
-  await requireUser()
+  await requireCaptura()
   if (!file || file.size === 0) return fail("Archivo inválido")
   const r = await uploadFile(file, { folder: "comprobantes", prefix: ventaId })
   return ok({ url: r.url })
