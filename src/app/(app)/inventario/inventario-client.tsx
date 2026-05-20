@@ -25,9 +25,10 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { FieldError, FieldHint, FormError } from "@/components/ui/field-error"
+import { DatePicker } from "@/components/ui/date-picker"
 import { formatearMoneda } from "@/lib/money"
-import { parseLocalDate } from "@/lib/date"
-import { cn } from "@/lib/utils"
+import { parseLocalDate, todayLocal } from "@/lib/date"
 import {
   createManzana,
   updateManzana,
@@ -36,6 +37,7 @@ import {
   updateLote,
   deleteLote,
 } from "@/features/inventory/actions"
+import { manzanaConstraints, loteConstraints } from "@/features/inventory/schemas"
 import { createVenta } from "@/features/sales/actions"
 import type { ManzanaDTO, LoteDTO, ClienteDTO, VendedorDTO, EstatusLote } from "@/types"
 import type { UserRole } from "@prisma/client"
@@ -272,6 +274,7 @@ function ManzanaDialog({
   const [nombre, setNombre] = useState(editing?.nombre ?? "")
   const [descripcion, setDescripcion] = useState(editing?.descripcion ?? "")
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
   // reset on open change
@@ -282,12 +285,14 @@ function ManzanaDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setFieldErrors({})
     startTransition(async () => {
       const r = editing
         ? await updateManzana(editing.id, { nombre, descripcion })
         : await createManzana({ nombre, descripcion })
       if (!r.ok) {
         setError(r.error)
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors)
         return
       }
       onOpenChange(false)
@@ -297,7 +302,7 @@ function ManzanaDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setError(""); setNombre(editing?.nombre ?? ""); setDescripcion(editing?.descripcion ?? "") } }}>
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setError(""); setFieldErrors({}); setNombre(editing?.nombre ?? ""); setDescripcion(editing?.descripcion ?? "") } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{editing ? "Editar manzana" : "Nueva manzana"}</DialogTitle>
@@ -306,13 +311,17 @@ function ManzanaDialog({
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
             <Label>Nombre</Label>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={manzanaConstraints.nombre.max} required />
+            <FieldError errors={fieldErrors.nombre} />
+            <FieldHint>{nombre.length}/{manzanaConstraints.nombre.max}</FieldHint>
           </div>
           <div className="space-y-1">
             <Label>Descripción</Label>
-            <Textarea value={descripcion ?? ""} onChange={(e) => setDescripcion(e.target.value)} />
+            <Textarea value={descripcion ?? ""} onChange={(e) => setDescripcion(e.target.value)} maxLength={manzanaConstraints.descripcion.max} />
+            <FieldError errors={fieldErrors.descripcion} />
+            <FieldHint>{(descripcion ?? "").length}/{manzanaConstraints.descripcion.max}</FieldHint>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={pending}>{pending ? "Guardando..." : "Guardar"}</Button>
@@ -344,6 +353,7 @@ function LoteDialog({
     notas: editing?.notas ?? "",
   })
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
   const total = (Number(form.superficieM2) || 0) * (Number(form.precioM2) || 0)
@@ -351,12 +361,17 @@ function LoteDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setFieldErrors({})
     startTransition(async () => {
       const payload = { ...form, superficieM2: Number(form.superficieM2), precioM2: Number(form.precioM2) }
       const r = editing
         ? await updateLote(editing.id, payload)
         : await createLote(payload)
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) {
+        setError(r.error)
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors)
+        return
+      }
       onOpenChange(false)
       onDone()
     })
@@ -386,19 +401,24 @@ function LoteDialog({
                 {manzanas.map((m) => <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError errors={fieldErrors.manzanaId} />
           </div>
           <div className="space-y-1">
             <Label>Número de lote</Label>
-            <Input value={form.numLote} onChange={(e) => setForm({ ...form, numLote: e.target.value })} required />
+            <Input value={form.numLote} onChange={(e) => setForm({ ...form, numLote: e.target.value })} maxLength={loteConstraints.numLote.max} required />
+            <FieldError errors={fieldErrors.numLote} />
+            <FieldHint>Máx. {loteConstraints.numLote.max} caracteres</FieldHint>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Superficie m²</Label>
-              <Input type="number" step="0.01" value={form.superficieM2} onChange={(e) => setForm({ ...form, superficieM2: e.target.value })} required />
+              <Input type="number" step="0.01" min="0.01" value={form.superficieM2} onChange={(e) => setForm({ ...form, superficieM2: e.target.value })} required />
+              <FieldError errors={fieldErrors.superficieM2} />
             </div>
             <div className="space-y-1">
               <Label>Precio por m²</Label>
-              <Input type="number" step="0.01" value={form.precioM2} onChange={(e) => setForm({ ...form, precioM2: e.target.value })} required />
+              <Input type="number" step="0.01" min="0.01" value={form.precioM2} onChange={(e) => setForm({ ...form, precioM2: e.target.value })} required />
+              <FieldError errors={fieldErrors.precioM2} />
             </div>
           </div>
           <div className="bg-slate-100 p-2 rounded text-sm">
@@ -406,14 +426,11 @@ function LoteDialog({
           </div>
           <div className="space-y-1">
             <Label>Notas</Label>
-            <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
+            <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} maxLength={loteConstraints.notas.max} />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{(form.notas ?? "").length}/{loteConstraints.notas.max}</FieldHint>
           </div>
-          {error && (
-            <p className="text-sm text-red-600 flex items-start gap-1 break-words whitespace-normal">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span className="min-w-0 break-all">{error}</span>
-            </p>
-          )}
+          <FormError error={error} />
           <div className="flex gap-2 justify-between">
             <div>
               {editing && (
@@ -456,13 +473,15 @@ function VenderDialog({
   const [form, setForm] = useState({
     clienteId: "",
     vendedorId: "",
+    fechaVenta: todayLocal(),
     enganche: "",
     plazoMeses: "12",
-    diaPago: "28",
+    diaPago: String(new Date().getDate()),
     interesMoratorioPorcentaje: "10",
     notas: "",
   })
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
   const precio = Number(lote?.totalPrecio ?? 0)
@@ -474,6 +493,7 @@ function VenderDialog({
     e.preventDefault()
     if (!lote) return
     setError("")
+    setFieldErrors({})
     startTransition(async () => {
       const r = await createVenta({
         ...form,
@@ -483,9 +503,13 @@ function VenderDialog({
         plazoMeses: Number(form.plazoMeses),
         diaPago: Number(form.diaPago),
         interesMoratorioPorcentaje: Number(form.interesMoratorioPorcentaje),
-        fechaVenta: parseLocalDate(new Date()),
+        fechaVenta: parseLocalDate(form.fechaVenta),
       })
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) {
+        setError(r.error)
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors)
+        return
+      }
       onOpenChange(false)
       onDone()
     })
@@ -516,6 +540,7 @@ function VenderDialog({
                 {clientes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError errors={fieldErrors.clienteId} />
           </div>
           <div className="space-y-1">
             <Label>Vendedor (opcional)</Label>
@@ -527,22 +552,38 @@ function VenderDialog({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label>Fecha de venta</Label>
+            <DatePicker value={form.fechaVenta} onChange={(v) => {
+              const day = v ? String(Number(v.split("-")[2])) : form.diaPago
+              setForm({ ...form, fechaVenta: v, diaPago: day })
+            }} required />
+            <FieldError errors={fieldErrors.fechaVenta} />
+            <FieldHint>Fecha en que se realizó/realizará la venta y se pagó el enganche</FieldHint>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Enganche</Label>
-              <Input type="number" step="0.01" value={form.enganche} onChange={(e) => setForm({ ...form, enganche: e.target.value })} required />
+              <Input type="number" step="0.01" min="0" value={form.enganche} onChange={(e) => setForm({ ...form, enganche: e.target.value })} required />
+              <FieldError errors={fieldErrors.enganche} />
             </div>
             <div className="space-y-1">
               <Label>Plazo (meses)</Label>
-              <Input type="number" min="1" value={form.plazoMeses} onChange={(e) => setForm({ ...form, plazoMeses: e.target.value })} required />
+              <Input type="number" min="1" max="360" value={form.plazoMeses} onChange={(e) => setForm({ ...form, plazoMeses: e.target.value })} required />
+              <FieldError errors={fieldErrors.plazoMeses} />
+              <FieldHint>1-360 meses</FieldHint>
             </div>
             <div className="space-y-1">
-              <Label>Día de pago (1-28)</Label>
-              <Input type="number" min="1" max="28" value={form.diaPago} onChange={(e) => setForm({ ...form, diaPago: e.target.value })} required />
+              <Label>Día de pago (1-31)</Label>
+              <Input type="number" min="1" max="31" value={form.diaPago} onChange={(e) => setForm({ ...form, diaPago: e.target.value })} required />
+              <FieldError errors={fieldErrors.diaPago} />
+              <FieldHint>Si el mes tiene menos días, se usará el último día</FieldHint>
             </div>
             <div className="space-y-1">
               <Label>% mora mensual</Label>
-              <Input type="number" step="0.01" value={form.interesMoratorioPorcentaje} onChange={(e) => setForm({ ...form, interesMoratorioPorcentaje: e.target.value })} required />
+              <Input type="number" step="0.01" min="0" max="100" value={form.interesMoratorioPorcentaje} onChange={(e) => setForm({ ...form, interesMoratorioPorcentaje: e.target.value })} required />
+              <FieldError errors={fieldErrors.interesMoratorioPorcentaje} />
+              <FieldHint>0-100%</FieldHint>
             </div>
           </div>
           <div className="bg-blue-50 p-3 rounded text-sm space-y-1">
@@ -553,14 +594,11 @@ function VenderDialog({
           </div>
           <div className="space-y-1">
             <Label>Notas</Label>
-            <Textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
+            <Textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} maxLength={1000} />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{form.notas.length}/1000</FieldHint>
           </div>
-          {error && (
-            <p className={cn("text-sm text-red-600 flex items-start gap-1 break-words whitespace-normal") }>
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span className="min-w-0 break-all">{error}</span>
-            </p>
-          )}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={pending}>{pending ? "Creando..." : "Crear venta"}</Button>

@@ -15,11 +15,11 @@ const dateOnlySchema = z
 
 export const registrarPagoSchema = z.object({
   ventaId: z.string().min(1),
-  monto: z.coerce.number().positive("Monto debe ser > 0"),
+  monto: z.coerce.number().positive("Monto debe ser mayor a $0"),
   fechaRegistro: dateOnlySchema.default(() => parseLocalDate(new Date())),
   tipo: TipoPagoEnum.default("MENSUALIDAD"),
   comprobanteUrl: z.string().optional().nullable(),
-  notas: z.string().max(1000).optional().nullable(),
+  notas: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
   /** Si true, se calcula automáticamente el cargo moratorio cuando aplica */
   cobrarMoraAutomatica: z.coerce.boolean().default(true),
 })

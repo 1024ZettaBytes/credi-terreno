@@ -35,7 +35,7 @@ export function formatearFecha(d: Date | string | null | undefined): string {
   }
   return new Intl.DateTimeFormat("es-MX", {
     day: "2-digit",
-    month: "short",
+    month: "long",
     year: "numeric",
     timeZone: "UTC",
   }).format(date)

@@ -30,8 +30,11 @@ export function fechaVencimientoMensualidad(
   numeroMensualidad: number,
 ): Date {
   const base = new Date(fechaVenta)
-  // offset = 0 si el diaPago de este mes aún no ha llegado; 1 si ya pasó
-  const offset = base.getUTCDate() < diaPago ? 0 : 1
+  // Get the effective payment day for the sale month (clamped to month's last day)
+  const lastDayOfSaleMonth = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate()
+  const effectiveDiaPago = Math.min(diaPago, lastDayOfSaleMonth)
+  // offset = 0 if the effective payment day hasn't passed yet; 1 if it has (or is today)
+  const offset = base.getUTCDate() < effectiveDiaPago ? 0 : 1
   const mesObjetivo = base.getUTCMonth() + offset + (numeroMensualidad - 1)
   const fecha = new Date(Date.UTC(base.getUTCFullYear(), mesObjetivo, diaPago, 12, 0, 0))
   // Si el día no existe en el mes (ej. 31 en febrero), usar el último día del mes

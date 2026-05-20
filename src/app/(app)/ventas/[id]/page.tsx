@@ -118,6 +118,9 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
             <Row label="Mensualidad" value={formatearMoneda(venta.mensualidadBase)} />
             <Row label="Plazo" value={`${venta.plazoMeses} meses`} />
             <Row label="Día de pago" value={`día ${venta.diaPago}`} />
+            {estadoSerializado && !estadoSerializado.liquidado && (
+              <Row label="Próximo pago" value={formatearFecha(estadoSerializado.proximaFechaPago)} />
+            )}
             <Row label="% Mora mensual" value={`${venta.interesMoratorioPorcentaje}%`} />
             {venta.vendedor && (
               <>

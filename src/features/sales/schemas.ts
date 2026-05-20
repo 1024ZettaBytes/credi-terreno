@@ -11,10 +11,10 @@ export const ventaSchema = z.object({
   vendedorId: z.string().optional().nullable(),
   fechaVenta: dateOnlySchema.default(() => parseLocalDate(new Date())),
   enganche: z.coerce.number().min(0, "Enganche debe ser ≥ 0"),
-  plazoMeses: z.coerce.number().int().min(1, "Plazo mínimo 1 mes").max(360),
-  diaPago: z.coerce.number().int().min(1).max(28, "Use día 1-28 para evitar problemas"),
-  interesMoratorioPorcentaje: z.coerce.number().min(0).max(100).default(5),
-  notas: z.string().max(1000).optional().nullable(),
+  plazoMeses: z.coerce.number().int().min(1, "Plazo mínimo 1 mes").max(360, "Plazo máximo 360 meses"),
+  diaPago: z.coerce.number().int().min(1, "Día mínimo es 1").max(31, "Día máximo es 31"),
+  interesMoratorioPorcentaje: z.coerce.number().min(0, "Mínimo 0%").max(100, "Máximo 100%").default(5),
+  notas: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
 })
 export type VentaInput = z.infer<typeof ventaSchema>
 

@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { FieldError, FieldHint, FormError } from "@/components/ui/field-error"
 import {
   createCliente,
   updateCliente,
@@ -23,6 +24,7 @@ import {
   addExpedienteFile,
   removeExpedienteFile,
 } from "@/features/clients/actions"
+import { clienteConstraints } from "@/features/clients/schemas"
 import type { ClienteDTO } from "@/types"
 import type { UserRole } from "@prisma/client"
 import { veriFyFileSize } from "@/lib/utils"
@@ -136,16 +138,22 @@ function ClienteDialog({
     notas: editing?.notas ?? "",
   })
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setFieldErrors({})
     startTransition(async () => {
       const r = editing
         ? await updateCliente(editing.id, form)
         : await createCliente(form)
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) {
+        setError(r.error)
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors)
+        return
+      }
       onOpenChange(false)
       onDone()
     })
@@ -161,37 +169,50 @@ function ClienteDialog({
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
             <Label>Nombre completo</Label>
-            <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+            <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} maxLength={clienteConstraints.nombre.max} required />
+            <FieldError errors={fieldErrors.nombre} />
+            <FieldHint>{form.nombre.length}/{clienteConstraints.nombre.max}</FieldHint>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Teléfono</Label>
-              <Input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} required />
+              <Input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} maxLength={clienteConstraints.telefono.max} required />
+              <FieldError errors={fieldErrors.telefono} />
+              <FieldHint>7-{clienteConstraints.telefono.max} caracteres</FieldHint>
             </div>
             <div className="space-y-1">
               <Label>Email</Label>
               <Input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <FieldError errors={fieldErrors.email} />
             </div>
           </div>
           <div className="space-y-1">
             <Label>Domicilio</Label>
-            <Textarea value={form.domicilio} onChange={(e) => setForm({ ...form, domicilio: e.target.value })} required />
+            <Textarea value={form.domicilio} onChange={(e) => setForm({ ...form, domicilio: e.target.value })} maxLength={clienteConstraints.domicilio.max} required />
+            <FieldError errors={fieldErrors.domicilio} />
+            <FieldHint>{form.domicilio.length}/{clienteConstraints.domicilio.max}</FieldHint>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>CURP</Label>
-              <Input value={form.curp ?? ""} maxLength={18} onChange={(e) => setForm({ ...form, curp: e.target.value.toUpperCase() })} />
+              <Input value={form.curp ?? ""} maxLength={clienteConstraints.curp.exact} onChange={(e) => setForm({ ...form, curp: e.target.value.toUpperCase() })} />
+              <FieldError errors={fieldErrors.curp} />
+              <FieldHint>{(form.curp ?? "").length}/{clienteConstraints.curp.exact} caracteres</FieldHint>
             </div>
             <div className="space-y-1">
               <Label>RFC</Label>
-              <Input value={form.rfc ?? ""} maxLength={13} onChange={(e) => setForm({ ...form, rfc: e.target.value.toUpperCase() })} />
+              <Input value={form.rfc ?? ""} maxLength={clienteConstraints.rfc.max} onChange={(e) => setForm({ ...form, rfc: e.target.value.toUpperCase() })} />
+              <FieldError errors={fieldErrors.rfc} />
+              <FieldHint>{clienteConstraints.rfc.min}-{clienteConstraints.rfc.max} caracteres</FieldHint>
             </div>
           </div>
           <div className="space-y-1">
             <Label>Notas</Label>
-            <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
+            <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} maxLength={clienteConstraints.notas.max} />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{(form.notas ?? "").length}/{clienteConstraints.notas.max}</FieldHint>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError error={error} />
           <div className="flex gap-2 justify-between">
             {editing && (
               <Button type="button" variant="destructive"

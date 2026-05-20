@@ -17,6 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createVendedor, updateVendedor, deleteVendedor, getVendedorDetalle } from "@/features/sales/vendor-actions"
+import { vendedorConstraints } from "@/features/sales/vendor-schemas"
+import { FieldError, FieldHint, FormError } from "@/components/ui/field-error"
 import type { VendedorDTO } from "@/types"
 import type { VendedorDetalleDTO } from "@/features/sales/vendor-queries"
 
@@ -115,15 +117,21 @@ function VendedorDialog({
     activo: editing?.activo ?? true,
   })
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setFieldErrors({})
     startTransition(async () => {
       const payload = { ...form, comisionPorcentaje: Number(form.comisionPorcentaje) }
       const r = editing ? await updateVendedor(editing.id, payload) : await createVendedor(payload)
-      if (!r.ok) { setError(r.error); return }
+      if (!r.ok) {
+        setError(r.error)
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors)
+        return
+      }
       onOpenChange(false); onDone()
     })
   }
@@ -136,17 +144,36 @@ function VendedorDialog({
           <DialogDescription>El % se aplicará sobre el precio total del lote en cada venta</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1"><Label>Nombre</Label><Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required /></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1"><Label>Teléfono</Label><Input value={form.telefono ?? ""} onChange={(e) => setForm({ ...form, telefono: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Email</Label><Input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          <div className="space-y-1">
+            <Label>Nombre</Label>
+            <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} maxLength={vendedorConstraints.nombre.max} required />
+            <FieldError errors={fieldErrors.nombre} />
+            <FieldHint>{form.nombre.length}/{vendedorConstraints.nombre.max}</FieldHint>
           </div>
-          <div className="space-y-1"><Label>% Comisión</Label><Input type="number" step="0.01" min="0" max="100" value={form.comisionPorcentaje} onChange={(e) => setForm({ ...form, comisionPorcentaje: e.target.value })} required /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label>Teléfono</Label>
+              <Input value={form.telefono ?? ""} onChange={(e) => setForm({ ...form, telefono: e.target.value })} maxLength={vendedorConstraints.telefono.max} />
+              <FieldError errors={fieldErrors.telefono} />
+              <FieldHint>Máx. {vendedorConstraints.telefono.max} caracteres</FieldHint>
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <FieldError errors={fieldErrors.email} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>% Comisión</Label>
+            <Input type="number" step="0.01" min={vendedorConstraints.comisionPorcentaje.min} max={vendedorConstraints.comisionPorcentaje.max} value={form.comisionPorcentaje} onChange={(e) => setForm({ ...form, comisionPorcentaje: e.target.value })} required />
+            <FieldError errors={fieldErrors.comisionPorcentaje} />
+            <FieldHint>{vendedorConstraints.comisionPorcentaje.min}% - {vendedorConstraints.comisionPorcentaje.max}%</FieldHint>
+          </div>
           <div className="flex items-center gap-2">
             <input id="activo" type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} />
             <Label htmlFor="activo" className="cursor-pointer">Activo</Label>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={pending}>{pending ? "Guardando..." : "Guardar"}</Button>

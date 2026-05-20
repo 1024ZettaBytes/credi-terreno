@@ -259,3 +259,68 @@ export async function reactivarLote(loteId: string): Promise<ActionResult<null>>
   revalidatePath("/inventario")
   return ok(null)
 }
+
+/**
+ * Actualizar la fecha de venta de un crédito activo.
+ * Esto recalcula la próxima fecha de pago y actualiza la fecha del pago de enganche.
+ */
+export async function updateDiaPago(ventaId: string, nuevoDiaPago: number): Promise<ActionResult<null>> {
+  await requireCaptura()
+
+  if (!Number.isInteger(nuevoDiaPago) || nuevoDiaPago < 1 || nuevoDiaPago > 31) {
+    return fail("El día de pago debe ser un número entre 1 y 31.")
+  }
+
+  const venta = await prisma.venta.findUnique({ where: { id: ventaId } })
+  if (!venta) return fail("Venta no encontrada")
+  if (venta.estatus !== "ACTIVO") return fail("Solo se puede modificar ventas activas")
+
+  const nuevaProximaFechaPago = fechaVencimientoMensualidad(venta.fechaVenta, nuevoDiaPago, venta.numeroMensualidadActual)
+
+  await prisma.venta.update({
+    where: { id: ventaId },
+    data: {
+      diaPago: nuevoDiaPago,
+      proximaFechaPago: nuevaProximaFechaPago,
+    },
+  })
+
+  revalidatePath("/ventas")
+  revalidatePath(`/ventas/${ventaId}`)
+  return ok(null)
+}
+
+export async function updateFechaVenta(ventaId: string, fechaVentaStr: string): Promise<ActionResult<null>> {
+  await requireCaptura()
+
+  if (!fechaVentaStr || !/^\d{4}-\d{2}-\d{2}$/.test(fechaVentaStr)) {
+    return fail("Fecha inválida. Usa el formato AAAA-MM-DD.")
+  }
+
+  const fechaVenta = parseLocalDate(fechaVentaStr)
+
+  const venta = await prisma.venta.findUnique({ where: { id: ventaId } })
+  if (!venta) return fail("Venta no encontrada")
+  if (venta.estatus !== "ACTIVO") return fail("Solo se puede modificar la fecha de ventas activas")
+
+  const nuevaProximaFechaPago = fechaVencimientoMensualidad(fechaVenta, venta.diaPago, venta.numeroMensualidadActual)
+
+  await prisma.$transaction([
+    prisma.venta.update({
+      where: { id: ventaId },
+      data: {
+        fechaVenta,
+        proximaFechaPago: nuevaProximaFechaPago,
+      },
+    }),
+    // Actualizar la fecha del pago de enganche para que coincida
+    prisma.pago.updateMany({
+      where: { ventaId, tipo: "ENGANCHE" },
+      data: { fechaRegistro: fechaVenta },
+    }),
+  ])
+
+  revalidatePath("/ventas")
+  revalidatePath(`/ventas/${ventaId}`)
+  return ok(null)
+}

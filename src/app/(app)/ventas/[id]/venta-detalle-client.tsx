@@ -6,7 +6,7 @@ import {
   DollarSign,
   ArrowRightLeft,
   RotateCcw,
-  AlertCircle,
+  CalendarDays,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,9 +38,13 @@ import {
   recuperarLote,
   cancelarVenta,
   liquidarVenta,
+  updateFechaVenta,
+  updateDiaPago,
 } from "@/features/sales/actions";
+import { FieldError, FieldHint, FormError } from "@/components/ui/field-error";
+import { DatePicker } from "@/components/ui/date-picker";
 import { formatearMoneda, formatearFecha } from "@/lib/money";
-import { parseLocalDate, todayLocal } from "@/lib/date";
+import { parseLocalDate, todayLocal, formatDateISO } from "@/lib/date";
 import { toast } from "sonner";
 import type { VentaDTO, ClienteDTO, VendedorDTO, UserRole } from "@/types";
 
@@ -75,6 +79,8 @@ export function VentaDetalleClient({
   const [openPago, setOpenPago] = useState(false);
   const [openTraspaso, setOpenTraspaso] = useState(false);
   const [openRecuperacion, setOpenRecuperacion] = useState(false);
+  const [openEditFecha, setOpenEditFecha] = useState(false);
+  const [openEditDiaPago, setOpenEditDiaPago] = useState(false);
   const isAdmin = userRole === "ADMIN";
   const canEdit = userRole === "ADMIN" || userRole === "CAPTURA";
   const router = useRouter();
@@ -119,6 +125,12 @@ export function VentaDetalleClient({
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setOpenPago(true)}>
             <DollarSign className="h-4 w-4" /> Registrar pago
+          </Button>
+          <Button variant="outline" onClick={() => setOpenEditFecha(true)}>
+            <CalendarDays className="h-4 w-4" /> Editar fecha de venta
+          </Button>
+          <Button variant="outline" onClick={() => setOpenEditDiaPago(true)}>
+            <CalendarDays className="h-4 w-4" /> Cambiar día de pago
           </Button>
           {isAdmin && (
             <>
@@ -192,6 +204,22 @@ export function VentaDetalleClient({
         onDone={() => router.refresh()}
       />
       )}
+      {openEditFecha && (
+        <EditFechaDialog
+          open={openEditFecha}
+          onOpenChange={setOpenEditFecha}
+          venta={venta}
+          onDone={() => router.refresh()}
+        />
+      )}
+      {openEditDiaPago && (
+        <EditDiaPagoDialog
+          open={openEditDiaPago}
+          onOpenChange={setOpenEditDiaPago}
+          venta={venta}
+          onDone={() => router.refresh()}
+        />
+      )}
     </>
   );
 }
@@ -215,10 +243,11 @@ function PagoDialog({
     tipo: "MENSUALIDAD" as TipoPago,
     fechaRegistro: todayLocal(),
     notas: "",
-    cobrarMoraAutomatica: true,
+    cobrarMoraAutomatica: false,
   });
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [pending, startTransition] = useTransition();
   const [preview, setPreview] = useState<DistribucionPago | null>(null);
 
@@ -255,6 +284,7 @@ function PagoDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     startTransition(async () => {
       const r = await registerPayment({
         ventaId: venta.id,
@@ -267,6 +297,7 @@ function PagoDialog({
       });
       if (!r.ok) {
         setError(r.error);
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors);
         return;
       }
       onOpenChange(false);
@@ -373,21 +404,20 @@ function PagoDialog({
               <Input
                 type="number"
                 step="0.01"
+                min="0.01"
                 value={form.monto}
                 onChange={(e) => setForm({ ...form, monto: e.target.value })}
                 readOnly={form.tipo === "LIQUIDACION"}
                 className={form.tipo === "LIQUIDACION" ? "bg-muted" : ""}
                 required
               />
+              <FieldError errors={fieldErrors.monto} />
             </div>
             <div className="space-y-1">
               <Label>Fecha</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={form.fechaRegistro}
-                onChange={(e) =>
-                  setForm({ ...form, fechaRegistro: e.target.value })
-                }
+                onChange={(v) => setForm({ ...form, fechaRegistro: v })}
                 required
               />
             </div>
@@ -503,14 +533,12 @@ function PagoDialog({
             <Textarea
               value={form.notas}
               onChange={(e) => setForm({ ...form, notas: e.target.value })}
+              maxLength={1000}
             />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{form.notas.length}/1000</FieldHint>
           </div>
-          {error && (
-            <p className="text-sm text-red-600 flex items-center gap-1">
-              <AlertCircle className="h-4 w-4" />
-              {error}
-            </p>
-          )}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button
               type="button"
@@ -555,11 +583,13 @@ function TraspasoDialog({
     notas: "",
   });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [pending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     startTransition(async () => {
       const r = await createTraspaso({
         ventaOriginalId: venta.id,
@@ -568,6 +598,7 @@ function TraspasoDialog({
       });
       if (!r.ok) {
         setError(r.error);
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors);
         return;
       }
       onOpenChange(false);
@@ -604,15 +635,19 @@ function TraspasoDialog({
                 ))}
               </SelectContent>
             </Select>
+            <FieldError errors={fieldErrors.clienteNuevoId} />
           </div>
           <div className="space-y-1">
             <Label>Notas</Label>
             <Textarea
               value={form.notas}
               onChange={(e) => setForm({ ...form, notas: e.target.value })}
+              maxLength={1000}
             />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{form.notas.length}/1000</FieldHint>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button
               type="button"
@@ -645,11 +680,13 @@ function RecuperacionDialog({
   const [porcentaje, setPorcentaje] = useState("50");
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [pending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     startTransition(async () => {
       const r = await recuperarLote({
         ventaId: venta.id,
@@ -658,6 +695,7 @@ function RecuperacionDialog({
       });
       if (!r.ok) {
         setError(r.error);
+        if (r.fieldErrors) setFieldErrors(r.fieldErrors);
         return;
       }
       alert(
@@ -690,15 +728,20 @@ function RecuperacionDialog({
               onChange={(e) => setPorcentaje(e.target.value)}
               required
             />
+            <FieldError errors={fieldErrors.porcentajeDevolucion} />
+            <FieldHint>0% - 100%</FieldHint>
           </div>
           <div className="space-y-1">
             <Label>Motivo</Label>
             <Textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
+              maxLength={1000}
             />
+            <FieldError errors={fieldErrors.motivo} />
+            <FieldHint>{motivo.length}/1000</FieldHint>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <FormError error={error} />
           <div className="flex gap-2 justify-end">
             <Button
               type="button"
@@ -709,6 +752,140 @@ function RecuperacionDialog({
             </Button>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending ? "Procesando..." : "Confirmar recuperación"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Edit Fecha de Venta Dialog ─── */
+function EditFechaDialog({
+  open,
+  onOpenChange,
+  venta,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  venta: VentaDTO;
+  onDone: () => void;
+}) {
+  const [fechaVenta, setFechaVenta] = useState(formatDateISO(new Date(venta.fechaVenta)));
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    startTransition(async () => {
+      const r = await updateFechaVenta(venta.id, fechaVenta);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      toast.success("Fecha de venta actualizada");
+      onOpenChange(false);
+      onDone();
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Editar fecha de venta</DialogTitle>
+          <DialogDescription>
+            Al cambiar la fecha se recalcula el calendario de pagos y se actualiza
+            la fecha del enganche.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1">
+            <Label>Fecha de venta</Label>
+            <DatePicker
+              value={fechaVenta}
+              onChange={setFechaVenta}
+              required
+            />
+            <FieldHint>Fecha en que se realizó la venta y se pagó el enganche</FieldHint>
+          </div>
+          <FormError error={error} />
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Edit Día de Pago Dialog ─── */
+function EditDiaPagoDialog({
+  open,
+  onOpenChange,
+  venta,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  venta: VentaDTO;
+  onDone: () => void;
+}) {
+  const [diaPago, setDiaPago] = useState(String(venta.diaPago));
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    startTransition(async () => {
+      const r = await updateDiaPago(venta.id, Number(diaPago));
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      toast.success("Día de pago actualizado");
+      onOpenChange(false);
+      onDone();
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Cambiar día de pago</DialogTitle>
+          <DialogDescription>
+            Se recalculará la próxima fecha de pago con el nuevo día.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1">
+            <Label>Día de pago (1-31)</Label>
+            <Input
+              type="number"
+              min="1"
+              max="31"
+              value={diaPago}
+              onChange={(e) => setDiaPago(e.target.value)}
+              required
+            />
+            <FieldHint>Si el mes tiene menos días, se usará el último día del mes</FieldHint>
+          </div>
+          <FormError error={error} />
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando..." : "Guardar"}
             </Button>
           </div>
         </form>
