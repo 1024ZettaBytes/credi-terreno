@@ -14,7 +14,7 @@ export default auth((req) => {
     return NextResponse.redirect(url)
   }
   // ADMIN-only sections
-  const adminPaths = ["/vendedores", "/traspasos", "/recuperaciones", "/usuarios", "/reportes"]
+  const adminPaths = ["/traspasos", "/recuperaciones", "/usuarios", "/reportes"]
   if (adminPaths.some((p) => pathname.startsWith(p)) && req.auth.user?.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/", req.url))
   }
