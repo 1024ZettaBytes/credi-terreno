@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
-import { Navigation, Footer } from "@/components/layout/navigation";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrediTerreno",
-  description: "Administración de créditos para terrenos",
+  title: "Credi-Terreno",
+  description: "Sistema de gestión de créditos inmobiliarios",
 };
 
 export default function RootLayout({
@@ -29,12 +30,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased light`}
       style={{ colorScheme: "light" }}
     >
-      <body className="min-h-full flex flex-col bg-slate-50">
-        <Navigation />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Footer />
+      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+        {children}
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

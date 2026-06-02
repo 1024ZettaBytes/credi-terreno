@@ -1,5 +1,6 @@
-// Prisma Schema para Sistema de Gestión de Créditos Inmobiliarios
-// CrediTerreno - Administración de Terrenos y Contratos
+// Prisma Schema - Credi-Terreno
+// Sistema profesional de administración de terrenos y créditos.
+// Clean Architecture + Features. Decimal para precisión financiera.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,195 +11,251 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// MODELO DE USUARIO (para autenticación)
-// ============================================
+// ============================================================
+// USUARIOS / SEGURIDAD (RBAC)
+// ============================================================
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String    // Hash de contraseña
-  name          String?
-  role          UserRole  @default(ADMIN)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relaciones de auditoría
-  pagosRegistrados Pago[] @relation("RegistradoPor")
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String?
+  role      UserRole @default(CAPTURA)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pagosRegistrados Pago[]     @relation("PagoRegistradoPor")
+  ventasCreadas    Venta[]    @relation("VentaCreadaPor")
+  traspasos        Traspaso[] @relation("TraspasoCreadoPor")
 
   @@map("users")
 }
 
 enum UserRole {
   ADMIN
-  VENDEDOR
-  CONTADOR
+  CAPTURA
+  VISUALIZACION
 }
 
-// ============================================
-// MODELO DE CLIENTE
-// ============================================
+// ============================================================
+// INVENTORY: MANZANA + LOTE
+// ============================================================
+model Manzana {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  descripcion String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lotes Lote[]
+
+  @@map("manzanas")
+}
+
+model Lote {
+  id           String      @id @default(cuid())
+  manzanaId    String
+  manzana      Manzana     @relation(fields: [manzanaId], references: [id], onDelete: Restrict)
+  numLote      String
+  superficieM2 Decimal     @db.Decimal(12, 2)
+  precioM2     Decimal     @db.Decimal(12, 2)
+  totalPrecio  Decimal     @db.Decimal(14, 2)
+  estatus      EstatusLote @default(DISPONIBLE)
+  notas        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  ventas Venta[]
+
+  @@unique([manzanaId, numLote])
+  @@index([estatus])
+  @@map("lotes")
+}
+
+enum EstatusLote {
+  DISPONIBLE
+  VENDIDO
+  RECUPERADO
+  TRASPASADO
+}
+
+// ============================================================
+// CLIENTES (con expediente)
+// ============================================================
 model Cliente {
-  id              String    @id @default(cuid())
-  nombreCompleto  String
-  domicilio       String
-  telefono        String
-  email           String?
-  curp            String?   @unique
-  rfc             String?
-  
-  // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  // Relaciones
-  contratos       Contrato[]
+  id         String   @id @default(cuid())
+  nombre     String
+  telefono   String
+  domicilio  String
+  email      String?
+  curp       String?  @unique
+  rfc        String?
+  expediente String[] @default([])
+  notas      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ventas              Venta[]
+  traspasosAnteriores Traspaso[] @relation("ClienteAnteriorTraspaso")
+  traspasosNuevos     Traspaso[] @relation("ClienteNuevoTraspaso")
 
   @@map("clientes")
 }
 
-// ============================================
-// MODELO DE TERRENO
-// ============================================
-model Terreno {
-  id              String         @id @default(cuid())
-  identificador   String         @unique  // Ej: "Lote 5, Manzana A"
-  descripcion     String?
-  
-  // Precio en formato Decimal para precisión financiera
-  precioLista     Decimal        @db.Decimal(12, 2)
-  
-  // Estado del terreno
-  estado          EstadoTerreno  @default(DISPONIBLE)
-  
-  // Coordenadas para el mapa visual (posición relativa en %)
-  coordenadaX     Float          // Posición X (left) en porcentaje 0-100
-  coordenadaY     Float          // Posición Y (top) en porcentaje 0-100
-  
-  // Dimensiones opcionales
-  superficie      Float?         // Metros cuadrados
-  frente          Float?         // Metros de frente
-  fondo           Float?         // Metros de fondo
-  
-  // Timestamps
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  
-  // Relaciones
-  contratos       Contrato[]
+// ============================================================
+// VENDEDORES
+// ============================================================
+model Vendedor {
+  id                 String   @id @default(cuid())
+  nombre             String
+  telefono           String?
+  email              String?
+  comisionPorcentaje Decimal  @db.Decimal(5, 2) @default(0)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  @@map("terrenos")
+  ventas Venta[]
+
+  @@map("vendedores")
 }
 
-enum EstadoTerreno {
-  DISPONIBLE
-  APARTADO
-  VENDIDO
+// ============================================================
+// VENTAS (CRÉDITOS)
+// ============================================================
+model Venta {
+  id                         String       @id @default(cuid())
+  loteId                     String
+  lote                       Lote         @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  clienteId                  String
+  cliente                    Cliente      @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  vendedorId                 String?
+  vendedor                   Vendedor?    @relation(fields: [vendedorId], references: [id], onDelete: SetNull)
+
+  fechaVenta                 DateTime     @default(now())
+  precioTotal                Decimal      @db.Decimal(14, 2)
+  enganche                   Decimal      @db.Decimal(14, 2)
+  montoFinanciado            Decimal      @db.Decimal(14, 2)
+  mensualidadBase            Decimal      @db.Decimal(12, 2)
+  plazoMeses                 Int
+  diaPago                    Int
+  interesMoratorioPorcentaje Decimal      @db.Decimal(5, 2) @default(5.0)
+
+  // Estado vivo del crédito (se actualiza con cada pago)
+  proximaFechaPago           DateTime
+  saldoMensualidadActual     Decimal      @db.Decimal(12, 2)
+  numeroMensualidadActual    Int          @default(1)
+  saldoCapital               Decimal      @db.Decimal(14, 2)
+
+  comisionPorcentaje         Decimal      @db.Decimal(5, 2) @default(0)
+  comisionMonto              Decimal      @db.Decimal(14, 2) @default(0)
+
+  estatus                    EstatusVenta @default(ACTIVO)
+  fechaCierre                DateTime?
+  notas                      String?
+
+  createdById                String?
+  createdBy                  User?        @relation("VentaCreadaPor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+
+  pagos            Pago[]
+  traspasoOriginal Traspaso?     @relation("TraspasoVentaOriginal")
+  traspasoGenerado Traspaso?     @relation("TraspasoVentaNueva")
+  recuperacion     Recuperacion?
+
+  @@index([estatus])
+  @@index([loteId])
+  @@index([clienteId])
+  @@map("ventas")
 }
 
-// ============================================
-// MODELO DE CONTRATO
-// ============================================
-model Contrato {
-  id                String    @id @default(cuid())
-  
-  // Relaciones principales
-  clienteId         String
-  cliente           Cliente   @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  
-  terrenoId         String
-  terreno           Terreno   @relation(fields: [terrenoId], references: [id], onDelete: Restrict)
-  
-  // Información financiera (Decimal para precisión)
-  precioVenta       Decimal   @db.Decimal(12, 2)  // Precio acordado de venta
-  enganche          Decimal   @db.Decimal(12, 2)  // Monto del enganche
-  
-  // Configuración de pagos
-  diaPagoMensual    Int       @default(15)        // Día del mes para pagar (1-31)
-  plazoMeses        Int       @default(12)        // Número de mensualidades
-  montoMensualidad  Decimal   @db.Decimal(12, 2)  // Monto fijo de cada mensualidad
-  
-  // Tasa de mora (porcentaje diario, ej: 0.5 = 0.5% diario)
-  tasaMoraDiaria    Decimal   @db.Decimal(5, 4)   @default(0.0050)
-  
-  // Estado del contrato
-  estado            EstadoContrato @default(ACTIVO)
-  fechaInicio       DateTime  @default(now())
-  fechaFin          DateTime?
-  
-  // Timestamps
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  // Relaciones
-  pagos             Pago[]
-
-  @@unique([clienteId, terrenoId])
-  @@map("contratos")
-}
-
-enum EstadoContrato {
+enum EstatusVenta {
   ACTIVO
   LIQUIDADO
+  TRASPASADO
   CANCELADO
-  EN_MORA
 }
 
-// ============================================
-// MODELO DE PAGO
-// ============================================
+// ============================================================
+// PAGOS
+// ============================================================
 model Pago {
-  id              String    @id @default(cuid())
-  
-  // Relación con contrato
-  contratoId      String
-  contrato        Contrato  @relation(fields: [contratoId], references: [id], onDelete: Restrict)
-  
-  // Información del pago (Decimal para precisión)
-  monto           Decimal   @db.Decimal(12, 2)
-  fechaPago       DateTime  @default(now())
-  
-  // Tipo de pago
-  tipo            TipoPago
-  
-  // Información adicional
-  numeroPago      Int?      // Número de mensualidad (1, 2, 3...)
-  periodoMes      Int?      // Mes al que corresponde este pago (1-12)
-  periodoAnio     Int?      // Año al que corresponde este pago
-  
-  // Para pagos de mora
-  diasMora        Int?      // Días de atraso que cubre este pago
-  
-  // Método de pago
-  metodoPago      MetodoPago @default(EFECTIVO)
-  referencia      String?    // Número de referencia/folio
-  comprobante     String?    // URL del comprobante
-  
-  // Notas adicionales
-  notas           String?
-  
-  // Quién registró el pago
-  registradoPorId String?
-  registradoPor   User?     @relation("RegistradoPor", fields: [registradoPorId], references: [id])
-  
-  // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  ventaId        String
+  venta          Venta     @relation(fields: [ventaId], references: [id], onDelete: Restrict)
 
+  monto          Decimal   @db.Decimal(14, 2)
+  fechaRegistro  DateTime  @default(now())
+  fechaPeriodo   DateTime?
+  tipo           TipoPago
+  periodoMes     Int?
+  periodoAnio    Int?
+  diasMora       Int?
+  comprobanteUrl String?
+  notas          String?
+
+  registradoPorId String?
+  registradoPor   User?    @relation("PagoRegistradoPor", fields: [registradoPorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ventaId])
+  @@index([fechaRegistro])
   @@map("pagos")
 }
 
 enum TipoPago {
   ENGANCHE
   MENSUALIDAD
-  INTERES_MORA
   ABONO_CAPITAL
+  MORATORIO
   LIQUIDACION
 }
 
-enum MetodoPago {
-  EFECTIVO
-  TRANSFERENCIA
-  CHEQUE
-  TARJETA
-  OTRO
+// ============================================================
+// TRASPASOS (cambio de titular)
+// ============================================================
+model Traspaso {
+  id                String  @id @default(cuid())
+  ventaOriginalId   String  @unique
+  ventaOriginal     Venta   @relation("TraspasoVentaOriginal", fields: [ventaOriginalId], references: [id], onDelete: Restrict)
+  ventaNuevaId      String? @unique
+  ventaNueva        Venta?  @relation("TraspasoVentaNueva", fields: [ventaNuevaId], references: [id], onDelete: SetNull)
+
+  clienteAnteriorId String
+  clienteAnterior   Cliente @relation("ClienteAnteriorTraspaso", fields: [clienteAnteriorId], references: [id], onDelete: Restrict)
+  clienteNuevoId    String
+  clienteNuevo      Cliente @relation("ClienteNuevoTraspaso", fields: [clienteNuevoId], references: [id], onDelete: Restrict)
+
+  fechaTraspaso DateTime @default(now())
+  costoTraspaso Decimal  @db.Decimal(14, 2) @default(0)
+  notas         String?
+
+  createdById String?
+  createdBy   User?    @relation("TraspasoCreadoPor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("traspasos")
+}
+
+// ============================================================
+// RECUPERACIÓN (rescisión)
+// ============================================================
+model Recuperacion {
+  id                   String   @id @default(cuid())
+  ventaId              String   @unique
+  venta                Venta    @relation(fields: [ventaId], references: [id], onDelete: Restrict)
+
+  fechaRecuperacion    DateTime @default(now())
+  totalPagadoCliente   Decimal  @db.Decimal(14, 2)
+  porcentajeDevolucion Decimal  @db.Decimal(5, 2)
+  montoDevolucion      Decimal  @db.Decimal(14, 2)
+  motivo               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("recuperaciones")
 }

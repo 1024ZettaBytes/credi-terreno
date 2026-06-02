@@ -1,4 +1,4 @@
-# CrediTerreno - Sistema de Gestión de Créditos Inmobiliarios
+# Credi-Terreno - Sistema de Gestión de Créditos Inmobiliarios
 
 Sistema administrativo avanzado para gestión de créditos inmobiliarios desarrollado con Next.js 16, Prisma, PostgreSQL y Shadcn UI.
 
