@@ -8,7 +8,7 @@ import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { manzanaSchema, loteSchema } from "./schemas"
 
 export async function createManzana(input: unknown): Promise<ActionResult<{ id: string }>> {
-  await requireAdmin()
+  await requireCaptura()
   const parsed = manzanaSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   try {
@@ -23,7 +23,7 @@ export async function createManzana(input: unknown): Promise<ActionResult<{ id: 
 }
 
 export async function updateManzana(id: string, input: unknown): Promise<ActionResult<null>> {
-  await requireAdmin()
+  await requireCaptura()
   const parsed = manzanaSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   await prisma.manzana.update({ where: { id }, data: parsed.data })

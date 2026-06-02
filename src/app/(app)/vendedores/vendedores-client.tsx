@@ -21,13 +21,16 @@ import { vendedorConstraints } from "@/features/sales/vendor-schemas"
 import { FieldError, FieldHint, FormError } from "@/components/ui/field-error"
 import type { VendedorDTO } from "@/types"
 import type { VendedorDetalleDTO } from "@/features/sales/vendor-queries"
+import type { UserRole } from "@prisma/client"
 
-export function VendedoresClient({ vendedores }: { vendedores: VendedorDTO[] }) {
+export function VendedoresClient({ vendedores, userRole }: { vendedores: VendedorDTO[]; userRole: UserRole }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VendedorDTO | null>(null)
   const [detalle, setDetalle] = useState<VendedorDetalleDTO | null>(null)
   const [pending, startTransition] = useTransition()
+
+  const isAdmin = userRole === "ADMIN"
 
   const handleVerDetalle = async (v: VendedorDTO) => {
     startTransition(async () => {
@@ -80,14 +83,16 @@ export function VendedoresClient({ vendedores }: { vendedores: VendedorDTO[] }) 
                       <Button size="icon" variant="ghost" onClick={() => { setEditing(v); setOpen(true) }}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" disabled={pending}
-                        onClick={() => {
-                          if (!confirm("¿Eliminar/desactivar vendedor?")) return
-                          startTransition(async () => {
-                            await deleteVendedor(v.id)
-                            router.refresh()
-                          })
-                        }}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                      {isAdmin && (
+                        <Button size="icon" variant="ghost" disabled={pending}
+                          onClick={() => {
+                            if (!confirm("¿Eliminar/desactivar vendedor?")) return
+                            startTransition(async () => {
+                              await deleteVendedor(v.id)
+                              router.refresh()
+                            })
+                          }}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

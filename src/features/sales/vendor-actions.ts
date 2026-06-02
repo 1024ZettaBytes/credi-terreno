@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
 import { Decimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin } from "@/lib/rbac"
+import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { vendedorSchema } from "./vendor-schemas"
 import { getVendedorDetalle as queryVendedorDetalle } from "./vendor-queries"
 import type { VendedorDetalleDTO } from "./vendor-queries"
 
 export async function createVendedor(input: unknown): Promise<ActionResult<{ id: string }>> {
-  await requireAdmin()
+  await requireCaptura()
   const parsed = vendedorSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const { comisionPorcentaje, email, telefono, ...rest } = parsed.data
@@ -27,7 +27,7 @@ export async function createVendedor(input: unknown): Promise<ActionResult<{ id:
 }
 
 export async function updateVendedor(id: string, input: unknown): Promise<ActionResult<null>> {
-  await requireAdmin()
+  await requireCaptura()
   const parsed = vendedorSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
   const { comisionPorcentaje, email, telefono, ...rest } = parsed.data
@@ -61,7 +61,7 @@ export async function deleteVendedor(id: string): Promise<ActionResult<null>> {
 export async function getVendedorDetalle(
   id: string,
 ): Promise<ActionResult<VendedorDetalleDTO>> {
-  await requireAdmin()
+  await requireCaptura()
   const detalle = await queryVendedorDetalle(id)
   if (!detalle) return fail("Vendedor no encontrado")
   return ok(detalle)

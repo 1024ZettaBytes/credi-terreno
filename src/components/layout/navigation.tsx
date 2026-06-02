@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/ventas", label: "Ventas", icon: FileText },
   { href: "/pagos", label: "Pagos", icon: DollarSign },
-  { href: "/vendedores", label: "Vendedores", icon: UserCog, adminOnly: true },
+  { href: "/vendedores", label: "Vendedores", icon: UserCog },
   {
     href: "/traspasos",
     label: "Traspasos",
