@@ -102,6 +102,7 @@ export function ClientesClient({ clientes, userRole }: { clientes: ClienteDTO[];
       </div>
 
       <ClienteDialog
+        key={`cliente-${editing?.id ?? "new"}`}
         open={open}
         onOpenChange={setOpen}
         editing={editing}

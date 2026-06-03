@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
-import { Decimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
 import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { vendedorSchema } from "./vendor-schemas"
@@ -13,13 +12,13 @@ export async function createVendedor(input: unknown): Promise<ActionResult<{ id:
   await requireCaptura()
   const parsed = vendedorSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
-  const { comisionPorcentaje, email, telefono, ...rest } = parsed.data
+  const { email, telefono, notas, ...rest } = parsed.data
   const v = await prisma.vendedor.create({
     data: {
       ...rest,
       email: email || null,
       telefono: telefono || null,
-      comisionPorcentaje: new Decimal(comisionPorcentaje).toFixed(2),
+      notas: notas || null,
     },
   })
   revalidatePath("/vendedores")
@@ -30,14 +29,14 @@ export async function updateVendedor(id: string, input: unknown): Promise<Action
   await requireCaptura()
   const parsed = vendedorSchema.safeParse(input)
   if (!parsed.success) return failFromZod(parsed.error)
-  const { comisionPorcentaje, email, telefono, ...rest } = parsed.data
+  const { email, telefono, notas, ...rest } = parsed.data
   await prisma.vendedor.update({
     where: { id },
     data: {
       ...rest,
       email: email || null,
       telefono: telefono || null,
-      comisionPorcentaje: new Decimal(comisionPorcentaje).toFixed(2),
+      notas: notas || null,
     },
   })
   revalidatePath("/vendedores")
