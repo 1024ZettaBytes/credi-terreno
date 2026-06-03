@@ -104,12 +104,12 @@ export function InventarioClient({ manzanas, lotes, clientes, vendedores, userRo
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {manzanas.map((m) => (
-              <div key={m.id} className="border rounded-lg p-3 group">
+              <div key={m.id} className="border rounded-lg p-3 group hover:border-slate-400 transition-colors">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold">{m.nombre}</p>
+                  <Link href={`/inventario/${m.id}`} className="min-w-0 group/link">
+                    <p className="font-semibold truncate group-hover/link:underline">{m.nombre}</p>
                     <p className="text-xs text-muted-foreground">{m.totalLotes ?? 0} lotes</p>
-                  </div>
+                  </Link>
                   <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                     {canEdit && (
                       <button
@@ -237,12 +237,14 @@ export function InventarioClient({ manzanas, lotes, clientes, vendedores, userRo
       </Card>
 
       <ManzanaDialog
+        key={`manzana-${editManzana?.id ?? "new"}`}
         open={openManzana}
         onOpenChange={setOpenManzana}
         editing={editManzana}
         onDone={() => router.refresh()}
       />
       <LoteDialog
+        key={`lote-${editLote?.id ?? "new"}`}
         open={openLote}
         onOpenChange={setOpenLote}
         editing={editLote}
@@ -548,7 +550,7 @@ function VenderDialog({
               <SelectTrigger><SelectValue placeholder="Sin vendedor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="NONE">Sin vendedor</SelectItem>
-                {vendedores.map((v) => <SelectItem key={v.id} value={v.id}>{v.nombre} ({v.comisionPorcentaje}%)</SelectItem>)}
+                {vendedores.map((v) => <SelectItem key={v.id} value={v.id}>{v.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

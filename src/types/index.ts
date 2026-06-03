@@ -32,6 +32,29 @@ export interface LoteDTO {
   ventaActiva?: { id: string; clienteNombre: string } | null
 }
 
+export interface LoteConVentaDTO {
+  id: string
+  numLote: string
+  superficieM2: string
+  precioM2: string
+  totalPrecio: string
+  estatus: EstatusLote
+  notas: string | null
+  venta: { id: string; estatus: EstatusVenta; clienteId: string; clienteNombre: string } | null
+}
+
+export interface ManzanaDetalleDTO {
+  id: string
+  nombre: string
+  descripcion: string | null
+  createdAt: string
+  updatedAt: string
+  totalLotes: number
+  lotesDisponibles: number
+  lotesVendidos: number
+  lotes: LoteConVentaDTO[]
+}
+
 export interface ClienteDTO {
   id: string
   nombre: string
@@ -53,6 +76,7 @@ export interface VendedorDTO {
   telefono: string | null
   email: string | null
   comisionPorcentaje: string
+  notas: string | null
   activo: boolean
   createdAt: string
   updatedAt: string

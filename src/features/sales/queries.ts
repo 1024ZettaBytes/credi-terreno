@@ -7,7 +7,7 @@ import type { VentaDTO } from "@/types"
 function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>> & {
   cliente?: { id: string; nombre: string; telefono: string; domicilio: string; email: string | null; curp: string | null; rfc: string | null; expediente: string[]; notas: string | null; createdAt: Date; updatedAt: Date }
   lote?: { id: string; manzanaId: string; numLote: string; superficieM2: import("decimal.js").Decimal; precioM2: import("decimal.js").Decimal; totalPrecio: import("decimal.js").Decimal; estatus: import("@prisma/client").EstatusLote; notas: string | null; createdAt: Date; updatedAt: Date; manzana?: { id: string; nombre: string } }
-  vendedor?: { id: string; nombre: string; telefono: string | null; email: string | null; comisionPorcentaje: import("decimal.js").Decimal; activo: boolean; createdAt: Date; updatedAt: Date } | null
+  vendedor?: { id: string; nombre: string; telefono: string | null; email: string | null; comisionPorcentaje: import("decimal.js").Decimal; notas: string | null; activo: boolean; createdAt: Date; updatedAt: Date } | null
   pagos?: Array<{ id: string; ventaId: string; monto: import("decimal.js").Decimal; fechaRegistro: Date; fechaPeriodo: Date | null; tipo: import("@prisma/client").TipoPago; periodoMes: number | null; periodoAnio: number | null; diasMora: number | null; comprobanteUrl: string | null; notas: string | null; registradoPorId: string | null; createdAt: Date; updatedAt: Date }>
 }): VentaDTO {
   return {
@@ -63,6 +63,7 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
           telefono: v.vendedor.telefono,
           email: v.vendedor.email,
           comisionPorcentaje: v.vendedor.comisionPorcentaje.toFixed(2),
+          notas: v.vendedor.notas,
           activo: v.vendedor.activo,
           createdAt: v.vendedor.createdAt.toISOString(),
           updatedAt: v.vendedor.updatedAt.toISOString(),

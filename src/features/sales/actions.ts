@@ -24,7 +24,6 @@ function toFriendlyDbError(e: unknown, fallback: string): string {
 
 export async function createVenta(input: unknown): Promise<ActionResult<{ id: string }>> {
   const user = await requireCaptura()
-  console.log("Usuario en createVenta:", user); // DEBUG
   const userExists = await prisma.user.findUnique({
     where: { id: user.id },
     select: { id: true },

@@ -6,6 +6,7 @@ import { Plus, Edit2, Trash2, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -60,7 +61,6 @@ export function VendedoresClient({ vendedores, userRole }: { vendedores: Vendedo
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
                 <TableHead className="hidden md:table-cell">Email</TableHead>
-                <TableHead>Comisión</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -71,7 +71,6 @@ export function VendedoresClient({ vendedores, userRole }: { vendedores: Vendedo
                   <TableCell className="font-medium">{v.nombre}</TableCell>
                   <TableCell className="hidden sm:table-cell">{v.telefono ?? "—"}</TableCell>
                   <TableCell className="hidden md:table-cell text-xs">{v.email ?? "—"}</TableCell>
-                  <TableCell>{v.comisionPorcentaje}%</TableCell>
                   <TableCell>
                     <Badge variant={v.activo ? "success" : "secondary"}>{v.activo ? "Activo" : "Inactivo"}</Badge>
                   </TableCell>
@@ -98,14 +97,14 @@ export function VendedoresClient({ vendedores, userRole }: { vendedores: Vendedo
                 </TableRow>
               ))}
               {vendedores.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Sin vendedores</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Sin vendedores</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <VendedorDialog open={open} onOpenChange={setOpen} editing={editing} onDone={() => router.refresh()} />
+      <VendedorDialog key={`vendedor-${editing?.id ?? "new"}`} open={open} onOpenChange={setOpen} editing={editing} onDone={() => router.refresh()} />
       {detalle && <VendedorDetalleDialog detalle={detalle} onOpenChange={(o) => !o && setDetalle(null)} />}
     </>
   )
@@ -118,7 +117,7 @@ function VendedorDialog({
     nombre: editing?.nombre ?? "",
     telefono: editing?.telefono ?? "",
     email: editing?.email ?? "",
-    comisionPorcentaje: editing?.comisionPorcentaje ?? "0",
+    notas: editing?.notas ?? "",
     activo: editing?.activo ?? true,
   })
   const [error, setError] = useState("")
@@ -130,8 +129,7 @@ function VendedorDialog({
     setError("")
     setFieldErrors({})
     startTransition(async () => {
-      const payload = { ...form, comisionPorcentaje: Number(form.comisionPorcentaje) }
-      const r = editing ? await updateVendedor(editing.id, payload) : await createVendedor(payload)
+      const r = editing ? await updateVendedor(editing.id, form) : await createVendedor(form)
       if (!r.ok) {
         setError(r.error)
         if (r.fieldErrors) setFieldErrors(r.fieldErrors)
@@ -146,7 +144,7 @@ function VendedorDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{editing ? "Editar vendedor" : "Nuevo vendedor"}</DialogTitle>
-          <DialogDescription>El % se aplicará sobre el precio total del lote en cada venta</DialogDescription>
+          <DialogDescription>Datos de contacto del vendedor</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
@@ -169,10 +167,10 @@ function VendedorDialog({
             </div>
           </div>
           <div className="space-y-1">
-            <Label>% Comisión</Label>
-            <Input type="number" step="0.01" min={vendedorConstraints.comisionPorcentaje.min} max={vendedorConstraints.comisionPorcentaje.max} value={form.comisionPorcentaje} onChange={(e) => setForm({ ...form, comisionPorcentaje: e.target.value })} required />
-            <FieldError errors={fieldErrors.comisionPorcentaje} />
-            <FieldHint>{vendedorConstraints.comisionPorcentaje.min}% - {vendedorConstraints.comisionPorcentaje.max}%</FieldHint>
+            <Label>Notas</Label>
+            <Textarea value={form.notas ?? ""} onChange={(e) => setForm({ ...form, notas: e.target.value })} maxLength={vendedorConstraints.notas.max} rows={3} />
+            <FieldError errors={fieldErrors.notas} />
+            <FieldHint>{(form.notas ?? "").length}/{vendedorConstraints.notas.max}</FieldHint>
           </div>
           <div className="flex items-center gap-2">
             <input id="activo" type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} />

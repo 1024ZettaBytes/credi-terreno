@@ -111,6 +111,7 @@ model Vendedor {
   email              String?
   comisionPorcentaje Decimal  @db.Decimal(5, 2) @default(0)
   activo             Boolean  @default(true)
+  notas              String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
