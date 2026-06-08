@@ -11,6 +11,7 @@ import { formatearMoneda, formatearFecha } from "@/lib/money"
 import { formatDateISO } from "@/lib/date"
 import { ArrowLeft } from "lucide-react"
 import { VentaDetalleClient } from "./venta-detalle-client"
+import { EditPagoFechaButton } from "./edit-pago-fecha"
 import { ComprobanteButton } from "@/components/ui/comprobante-button"
 import { getOptionalUser } from "@/lib/rbac"
 
@@ -30,6 +31,8 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
     getOptionalUser(),
   ])
   if (!venta) notFound()
+
+  const canEdit = user?.role === "ADMIN" || user?.role === "CAPTURA"
 
   const estadoSerializado = estado
     ? {
@@ -85,6 +88,7 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
                   <TableHead>Mora</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="hidden sm:table-cell">Comprobante</TableHead>
+                  {canEdit && <TableHead className="text-right">Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -98,10 +102,15 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
                     <TableCell className="text-xs">{p.diasMora ? `${p.diasMora}d` : "—"}</TableCell>
                     <TableCell className="text-right font-semibold">{formatearMoneda(p.monto)}</TableCell>
                     <TableCell className="hidden sm:table-cell">{p.comprobanteUrl ? <ComprobanteButton url={p.comprobanteUrl} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        <EditPagoFechaButton pagoId={p.id} fechaRegistro={p.fechaRegistro} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {(!venta.pagos || venta.pagos.length === 0) && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Sin pagos</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center text-muted-foreground py-6">Sin pagos</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

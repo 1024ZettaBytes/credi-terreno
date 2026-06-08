@@ -28,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FieldError, FieldHint, FormError } from "@/components/ui/field-error"
 import { DatePicker } from "@/components/ui/date-picker"
 import { formatearMoneda } from "@/lib/money"
+import { RECARGO_SIN_ENGANCHE } from "@/lib/finance"
 import { parseLocalDate, todayLocal } from "@/lib/date"
 import {
   createManzana,
@@ -472,6 +473,7 @@ function VenderDialog({
   vendedores: VendedorDTO[]
   onDone: () => void
 }) {
+  const [sinEnganche, setSinEnganche] = useState(false)
   const [form, setForm] = useState({
     clienteId: "",
     vendedorId: "",
@@ -486,8 +488,12 @@ function VenderDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [pending, startTransition] = useTransition()
 
-  const precio = Number(lote?.totalPrecio ?? 0)
-  const enganche = Number(form.enganche || 0)
+  const precioBase = Number(lote?.totalPrecio ?? 0)
+  const engancheCapturado = form.enganche.trim() === "" ? null : Number(form.enganche)
+  const enganche = sinEnganche ? 0 : engancheCapturado ?? 0
+  // El recargo aplica cuando la venta es sin enganche (enganche = 0), igual que en el servidor.
+  const recargoAplica = sinEnganche || engancheCapturado === 0
+  const precio = recargoAplica ? precioBase + RECARGO_SIN_ENGANCHE : precioBase
   const plazo = Number(form.plazoMeses || 1)
   const mensualidad = plazo > 0 ? (precio - enganche) / plazo : 0
 
@@ -501,7 +507,7 @@ function VenderDialog({
         ...form,
         loteId: lote.id,
         vendedorId: form.vendedorId || null,
-        enganche: Number(form.enganche),
+        enganche: sinEnganche ? 0 : Number(form.enganche),
         plazoMeses: Number(form.plazoMeses),
         diaPago: Number(form.diaPago),
         interesMoratorioPorcentaje: Number(form.interesMoratorioPorcentaje),
@@ -518,7 +524,7 @@ function VenderDialog({
   }
 
   return (
-    <Dialog open={!!lote} onOpenChange={onOpenChange}>
+    <Dialog open={!!lote} onOpenChange={(o) => { if (!o) setSinEnganche(false); onOpenChange(o) }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Vender lote {lote?.numLote} ( {lote?.manzana?.nombre})</DialogTitle>
@@ -563,10 +569,34 @@ function VenderDialog({
             <FieldError errors={fieldErrors.fechaVenta} />
             <FieldHint>Fecha en que se realizó/realizará la venta y se pagó el enganche</FieldHint>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="sinEnganche"
+              type="checkbox"
+              checked={sinEnganche}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setSinEnganche(checked)
+                if (checked) setForm((f) => ({ ...f, enganche: "0" }))
+              }}
+            />
+            <Label htmlFor="sinEnganche" className="text-sm cursor-pointer">
+              Sin enganche (se suma {formatearMoneda(RECARGO_SIN_ENGANCHE)} al precio)
+            </Label>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Enganche</Label>
-              <Input type="number" step="0.01" min="0" value={form.enganche} onChange={(e) => setForm({ ...form, enganche: e.target.value })} required />
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={sinEnganche ? "0" : form.enganche}
+                onChange={(e) => setForm({ ...form, enganche: e.target.value })}
+                disabled={sinEnganche}
+                className={sinEnganche ? "bg-muted" : ""}
+                required
+              />
               <FieldError errors={fieldErrors.enganche} />
             </div>
             <div className="space-y-1">
@@ -589,6 +619,12 @@ function VenderDialog({
             </div>
           </div>
           <div className="bg-blue-50 p-3 rounded text-sm space-y-1">
+            {recargoAplica && (
+              <>
+                <div className="flex justify-between"><span>Precio del lote:</span><span className="font-semibold">{formatearMoneda(precioBase)}</span></div>
+                <div className="flex justify-between text-amber-700"><span>Recargo sin enganche:</span><span className="font-semibold">+{formatearMoneda(RECARGO_SIN_ENGANCHE)}</span></div>
+              </>
+            )}
             <div className="flex justify-between"><span>Precio total:</span><span className="font-semibold">{formatearMoneda(precio)}</span></div>
             <div className="flex justify-between"><span>Enganche:</span><span className="font-semibold">{formatearMoneda(enganche)}</span></div>
             <div className="flex justify-between"><span>Monto a financiar:</span><span className="font-semibold">{formatearMoneda(precio - enganche)}</span></div>
