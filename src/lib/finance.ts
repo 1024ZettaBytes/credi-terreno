@@ -1,5 +1,25 @@
 import { Decimal, toDecimal } from "@/lib/money"
 
+/**
+ * Recargo aplicado a las ventas "Sin enganche" (enganche = 0): el precio total
+ * del lote se incrementa en esta cantidad. Ver `calcularPrecioVenta`.
+ */
+export const RECARGO_SIN_ENGANCHE = 20000
+
+/**
+ * Precio total efectivo de la venta a partir del precio base del lote.
+ * Si la venta es sin enganche (enganche = 0), se suma `RECARGO_SIN_ENGANCHE`.
+ */
+export function calcularPrecioVenta(
+  precioBaseLote: Decimal | string | number,
+  enganche: Decimal | string | number,
+): Decimal {
+  const base = toDecimal(precioBaseLote)
+  return toDecimal(enganche).lessThanOrEqualTo(0)
+    ? base.plus(RECARGO_SIN_ENGANCHE)
+    : base
+}
+
 /** Calcula la mensualidad base = (precio - enganche) / plazo */
 export function calcularMensualidadBase(
   precioTotal: Decimal | string | number,

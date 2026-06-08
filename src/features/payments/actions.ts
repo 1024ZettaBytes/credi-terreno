@@ -319,6 +319,29 @@ export async function uploadComprobante(
   return ok({ url: r.url })
 }
 
+export async function updateFechaPago(
+  pagoId: string,
+  fechaStr: string,
+): Promise<ActionResult<null>> {
+  await requireCaptura()
+
+  if (!fechaStr || !/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
+    return fail("Fecha inválida. Usa el formato AAAA-MM-DD.")
+  }
+
+  const pago = await prisma.pago.findUnique({ where: { id: pagoId } })
+  if (!pago) return fail("Pago no encontrado")
+
+  await prisma.pago.update({
+    where: { id: pagoId },
+    data: { fechaRegistro: parseLocalDate(fechaStr) },
+  })
+
+  revalidatePath("/pagos")
+  revalidatePath(`/ventas/${pago.ventaId}`)
+  return ok(null)
+}
+
 export async function deletePago(pagoId: string): Promise<ActionResult<null>> {
   await requireAdmin()
   const pago = await prisma.pago.findUnique({ where: { id: pagoId } })

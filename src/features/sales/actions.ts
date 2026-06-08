@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma"
 import { Decimal, toDecimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
 import { requireAdmin, requireCaptura } from "@/lib/rbac"
-import { calcularComision, calcularMensualidadBase, fechaVencimientoMensualidad } from "@/lib/finance"
+import { calcularComision, calcularMensualidadBase, calcularPrecioVenta, fechaVencimientoMensualidad } from "@/lib/finance"
 import { parseLocalDate } from "@/lib/date"
 import { ventaSchema, traspasoSchema, recuperacionSchema } from "./schemas"
 
@@ -39,8 +39,9 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     return fail(`Lote no está disponible (estatus: ${lote.estatus})`)
   }
 
-  const precioTotal = toDecimal(lote.totalPrecio)
   const enganche = toDecimal(data.enganche)
+  // Modalidad "Sin enganche": enganche = 0 ⇒ se recarga el precio del lote.
+  const precioTotal = calcularPrecioVenta(lote.totalPrecio, enganche)
   if (enganche.greaterThan(precioTotal)) return fail("Enganche no puede superar el precio total")
 
   const montoFinanciado = precioTotal.minus(enganche)
