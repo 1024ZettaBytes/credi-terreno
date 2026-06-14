@@ -1,4 +1,5 @@
 import { Decimal, toDecimal } from "@/lib/money"
+import type { TipoPago } from "@prisma/client"
 
 /**
  * Recargo aplicado a las ventas "Sin enganche" (enganche = 0): el precio total
@@ -63,6 +64,98 @@ export function fechaVencimientoMensualidad(
     fecha.setUTCDate(0)
   }
   return fecha
+}
+
+/* ============================================================
+ * RECÁLCULO DEL ESTADO VIVO (replay) — usado al eliminar pagos.
+ * Reconstruye los campos vivos de la venta reproduciendo, en orden
+ * cronológico, el efecto de las filas `Pago` restantes. Reproduce
+ * paso a paso la misma matemática que `simularDistribucion`.
+ * ============================================================ */
+
+export interface VentaInmutable {
+  fechaVenta: Date
+  diaPago: number
+  plazoMeses: number
+  /** Capital financiado original (precioTotal − enganche). */
+  montoFinanciado: Decimal | string | number
+}
+
+export interface PagoParaRecalculo {
+  tipo: TipoPago
+  monto: Decimal | string | number
+}
+
+export interface EstadoVentaRecalculado {
+  mensualidadBase: Decimal
+  saldoMensualidadActual: Decimal
+  saldoCapital: Decimal
+  numeroMensualidadActual: number
+  proximaFechaPago: Date
+  liquidado: boolean
+}
+
+/**
+ * Reconstruye el estado vivo de una venta a partir de sus datos inmutables y
+ * de los pagos restantes (deben venir ordenados cronológicamente).
+ * MORATORIO y ENGANCHE no afectan el estado vivo.
+ */
+export function recalcularEstadoVenta(
+  v: VentaInmutable,
+  pagos: PagoParaRecalculo[],
+): EstadoVentaRecalculado {
+  const montoFinanciado = toDecimal(v.montoFinanciado)
+  let mensualidadBase = calcularMensualidadBase(montoFinanciado, 0, v.plazoMeses)
+  let saldoCapital = montoFinanciado
+  let saldoMens = mensualidadBase
+  let numMes = 1
+  let proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, 1)
+
+  const recalcMensualidad = () => {
+    const mesesRestantes = v.plazoMeses - (numMes - 1)
+    if (mesesRestantes <= 0 || saldoCapital.lessThanOrEqualTo(0)) {
+      saldoMens = new Decimal(0)
+      return
+    }
+    const pagadoEsteMes = mensualidadBase.minus(saldoMens)
+    const nuevaMens = saldoCapital.dividedBy(mesesRestantes).toDecimalPlaces(2)
+    mensualidadBase = nuevaMens
+    saldoMens = Decimal.max(nuevaMens.minus(pagadoEsteMes), new Decimal(0))
+  }
+
+  for (const p of pagos) {
+    const monto = toDecimal(p.monto)
+    if (p.tipo === "MENSUALIDAD") {
+      saldoCapital = saldoCapital.minus(monto)
+      saldoMens = saldoMens.minus(monto)
+      if (saldoMens.lessThanOrEqualTo(0)) {
+        numMes += 1
+        if (numMes <= v.plazoMeses) {
+          saldoMens = mensualidadBase
+          proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+        } else {
+          saldoMens = new Decimal(0)
+        }
+      }
+    } else if (p.tipo === "ABONO_CAPITAL") {
+      saldoCapital = saldoCapital.minus(monto)
+      recalcMensualidad()
+    } else if (p.tipo === "LIQUIDACION") {
+      saldoCapital = saldoCapital.minus(monto)
+      saldoMens = new Decimal(0)
+    }
+    // MORATORIO y ENGANCHE: no modifican el estado vivo.
+  }
+
+  saldoCapital = Decimal.max(saldoCapital, new Decimal(0))
+  return {
+    mensualidadBase,
+    saldoMensualidadActual: Decimal.max(saldoMens, new Decimal(0)),
+    saldoCapital,
+    numeroMensualidadActual: Math.min(numMes, v.plazoMeses + 1),
+    proximaFechaPago,
+    liquidado: saldoCapital.lessThanOrEqualTo(0),
+  }
 }
 
 /**
