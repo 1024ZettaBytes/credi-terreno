@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache"
 import prisma from "@/lib/prisma"
 import { Decimal, toDecimal } from "@/lib/money"
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
-import { requireAdmin, requireCaptura } from "@/lib/rbac"
+import { requireCaptura } from "@/lib/rbac"
 import { uploadFile } from "@/lib/storage"
 import {
   calcularEstadoCuenta,
   calcularMoraDiaria,
   fechaVencimientoMensualidad,
+  recalcularEstadoVenta,
 } from "@/lib/finance"
 import { formatDateISO, parseLocalDate } from "@/lib/date"
 import { registrarPagoSchema } from "./schemas"
@@ -342,14 +343,61 @@ export async function updateFechaPago(
   return ok(null)
 }
 
+/**
+ * Elimina un pago y recomputa el estado vivo de la venta reproduciendo los
+ * pagos restantes. ADMIN o CAPTURA; no aplica a ENGANCHE ni a ventas no activas.
+ */
 export async function deletePago(pagoId: string): Promise<ActionResult<null>> {
-  await requireAdmin()
+  await requireCaptura()
   const pago = await prisma.pago.findUnique({ where: { id: pagoId } })
   if (!pago) return fail("Pago no encontrado")
-  await prisma.pago.delete({ where: { id: pagoId } })
-  revalidatePath("/pagos")
-  revalidatePath(`/ventas/${pago.ventaId}`)
-  return ok(null)
+  if (pago.tipo === "ENGANCHE") {
+    return fail("El enganche no se puede eliminar; cancela la venta para revertirlo.")
+  }
+
+  const venta = await prisma.venta.findUnique({ where: { id: pago.ventaId } })
+  if (!venta) return fail("Venta no encontrada")
+  if (venta.estatus !== "ACTIVO") {
+    return fail("Solo se pueden eliminar pagos de ventas activas")
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.pago.delete({ where: { id: pagoId } })
+      const restantes = await tx.pago.findMany({
+        where: { ventaId: venta.id },
+        orderBy: [{ fechaRegistro: "asc" }, { createdAt: "asc" }],
+        select: { tipo: true, monto: true },
+      })
+      const estado = recalcularEstadoVenta(
+        {
+          fechaVenta: venta.fechaVenta,
+          diaPago: venta.diaPago,
+          plazoMeses: venta.plazoMeses,
+          montoFinanciado: venta.montoFinanciado,
+        },
+        restantes,
+      )
+      await tx.venta.update({
+        where: { id: venta.id },
+        data: {
+          mensualidadBase: estado.mensualidadBase.toFixed(2),
+          saldoMensualidadActual: estado.saldoMensualidadActual.toFixed(2),
+          saldoCapital: estado.saldoCapital.toFixed(2),
+          proximaFechaPago: estado.proximaFechaPago,
+          numeroMensualidadActual: estado.numeroMensualidadActual,
+        },
+      })
+    })
+
+    revalidatePath("/pagos")
+    revalidatePath(`/ventas/${pago.ventaId}`)
+    revalidatePath("/ventas")
+    revalidatePath("/")
+    return ok(null)
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Error al eliminar pago")
+  }
 }
 
 /** Estado de cuenta desde los campos vivos de la venta. */

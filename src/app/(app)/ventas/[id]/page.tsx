@@ -12,6 +12,7 @@ import { formatDateISO } from "@/lib/date"
 import { ArrowLeft } from "lucide-react"
 import { VentaDetalleClient } from "./venta-detalle-client"
 import { EditPagoFechaButton } from "./edit-pago-fecha"
+import { DeletePagoButton } from "./delete-pago"
 import { ComprobanteButton } from "@/components/ui/comprobante-button"
 import { getOptionalUser } from "@/lib/rbac"
 
@@ -104,7 +105,10 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
                     <TableCell className="hidden sm:table-cell">{p.comprobanteUrl ? <ComprobanteButton url={p.comprobanteUrl} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                     {canEdit && (
                       <TableCell className="text-right">
-                        <EditPagoFechaButton pagoId={p.id} fechaRegistro={p.fechaRegistro} />
+                        <div className="flex justify-end gap-1">
+                          <EditPagoFechaButton pagoId={p.id} fechaRegistro={p.fechaRegistro} />
+                          {p.tipo !== "ENGANCHE" && <DeletePagoButton pagoId={p.id} />}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
