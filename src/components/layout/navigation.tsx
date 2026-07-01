@@ -16,6 +16,7 @@ import {
   ArrowRightLeft,
   RotateCcw,
   BarChart3,
+  Wrench,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,14 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  systemOnly?: boolean;
+}
+
+/** SYSTEM ve todo; las rutas adminOnly también las ve SYSTEM. */
+function canSeeItem(item: NavItem, role: UserRole): boolean {
+  if (item.systemOnly) return role === "SYSTEM";
+  if (item.adminOnly) return role === "ADMIN" || role === "SYSTEM";
+  return true;
 }
 
 const navItems: NavItem[] = [
@@ -50,12 +59,19 @@ const navItems: NavItem[] = [
     adminOnly: true,
   },
   { href: "/reportes", label: "Reportes", icon: BarChart3, adminOnly: true },
+  {
+    href: "/desarrollador",
+    label: "Desarrollador",
+    icon: Wrench,
+    systemOnly: true,
+  },
 ];
 
 const roleLabel: Record<UserRole, string> = {
   ADMIN: "Admin",
   CAPTURA: "Captura",
   VISUALIZACION: "Solo lectura",
+  SYSTEM: "Desarrollador",
 };
 
 interface NavigationProps {
@@ -66,9 +82,7 @@ interface NavigationProps {
 /* ─── Desktop Sidebar ─── */
 export function Sidebar({ userRole = "CAPTURA", userName }: NavigationProps) {
   const pathname = usePathname();
-  const visibleItems = navItems.filter(
-    (i) => !i.adminOnly || userRole === "ADMIN",
-  );
+  const visibleItems = navItems.filter((i) => canSeeItem(i, userRole));
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -135,9 +149,7 @@ export function MobileHeader({ userRole = "CAPTURA", userName }: NavigationProps
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const visibleItems = navItems.filter(
-    (i) => !i.adminOnly || userRole === "ADMIN",
-  );
+  const visibleItems = navItems.filter((i) => canSeeItem(i, userRole));
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";

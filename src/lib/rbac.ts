@@ -16,13 +16,19 @@ export async function requireRole(roles: UserRole[]) {
   return user
 }
 
+/** SYSTEM es superusuario: hereda todos los permisos de ADMIN. */
 export async function requireAdmin() {
-  return requireRole(["ADMIN"])
+  return requireRole(["ADMIN", "SYSTEM"])
 }
 
 /** Requires ADMIN or CAPTURA — blocks VISUALIZACION from write operations */
 export async function requireCaptura() {
-  return requireRole(["ADMIN", "CAPTURA"])
+  return requireRole(["ADMIN", "CAPTURA", "SYSTEM"])
+}
+
+/** Acceso exclusivo del rol SYSTEM (ni siquiera ADMIN entra). */
+export async function requireSystem() {
+  return requireRole(["SYSTEM"])
 }
 
 export async function getOptionalUser() {
@@ -32,9 +38,13 @@ export async function getOptionalUser() {
 
 /** Check if user can perform write actions (useful in client components) */
 export function canWrite(role: UserRole): boolean {
-  return role === "ADMIN" || role === "CAPTURA"
+  return role === "ADMIN" || role === "CAPTURA" || role === "SYSTEM"
 }
 
 export function isAdmin(role: UserRole): boolean {
-  return role === "ADMIN"
+  return role === "ADMIN" || role === "SYSTEM"
+}
+
+export function isSystem(role: UserRole): boolean {
+  return role === "SYSTEM"
 }

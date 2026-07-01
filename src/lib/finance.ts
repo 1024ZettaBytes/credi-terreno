@@ -41,22 +41,42 @@ export function calcularComision(
 }
 
 /**
+ * LEGADO (solo migración/ajustes): reconstruye la ancla histórica de la
+ * mensualidad #1 con la regla antigua (fechaVenta + diaPago + offset), usada
+ * antes de capturar `fechaPrimerPago` explícitamente. Sirve para ubicar a qué
+ * mensualidad pertenece cada pago de una venta heredada.
+ */
+export function anclaPrimerPagoHistorica(fechaVenta: Date, diaPago: number): Date {
+  const base = new Date(fechaVenta)
+  const lastDayOfSaleMonth = new Date(
+    Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  const effectiveDiaPago = Math.min(diaPago, lastDayOfSaleMonth)
+  const offset = base.getUTCDate() < effectiveDiaPago ? 0 : 1
+  const mesObjetivo = base.getUTCMonth() + offset
+  const fecha = new Date(Date.UTC(base.getUTCFullYear(), mesObjetivo, diaPago, 12, 0, 0))
+  const expectedMonth = ((mesObjetivo % 12) + 12) % 12
+  if (fecha.getUTCMonth() !== expectedMonth) {
+    fecha.setUTCDate(0)
+  }
+  return fecha
+}
+
+/**
  * Construye la fecha de vencimiento de la mensualidad N (1-based).
- * - Si en el mes de la venta el `diaPago` aún no ha pasado, la mensualidad #1 vence ese mismo mes.
- * - Si ya pasó (o es el mismo día), la mensualidad #1 vence al mes siguiente.
+ * El calendario se ancla en `fechaPrimerPago` (vencimiento de la mensualidad #1,
+ * capturado explícitamente por el usuario al crear la venta):
+ *   mensualidad N  =  fechaPrimerPago + (N - 1) meses
+ * `diaPago` es el día canónico del mes (= día de `fechaPrimerPago`); se usa para
+ * recortar al último día cuando el mes objetivo tiene menos días (ej. 31 en febrero).
  */
 export function fechaVencimientoMensualidad(
-  fechaVenta: Date,
+  fechaPrimerPago: Date,
   diaPago: number,
   numeroMensualidad: number,
 ): Date {
-  const base = new Date(fechaVenta)
-  // Get the effective payment day for the sale month (clamped to month's last day)
-  const lastDayOfSaleMonth = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate()
-  const effectiveDiaPago = Math.min(diaPago, lastDayOfSaleMonth)
-  // offset = 0 if the effective payment day hasn't passed yet; 1 if it has (or is today)
-  const offset = base.getUTCDate() < effectiveDiaPago ? 0 : 1
-  const mesObjetivo = base.getUTCMonth() + offset + (numeroMensualidad - 1)
+  const base = new Date(fechaPrimerPago)
+  const mesObjetivo = base.getUTCMonth() + (numeroMensualidad - 1)
   const fecha = new Date(Date.UTC(base.getUTCFullYear(), mesObjetivo, diaPago, 12, 0, 0))
   // Si el día no existe en el mes (ej. 31 en febrero), usar el último día del mes
   const expectedMonth = ((mesObjetivo % 12) + 12) % 12
@@ -76,6 +96,8 @@ export function fechaVencimientoMensualidad(
 export interface VentaInmutable {
   fechaVenta: Date
   diaPago: number
+  /** Ancla del calendario: vencimiento de la mensualidad #1. */
+  fechaPrimerPago: Date
   plazoMeses: number
   /** Capital financiado original (precioTotal − enganche). */
   montoFinanciado: Decimal | string | number
@@ -109,7 +131,7 @@ export function recalcularEstadoVenta(
   let saldoCapital = montoFinanciado
   let saldoMens = mensualidadBase
   let numMes = 1
-  let proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, 1)
+  let proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, 1)
 
   const recalcMensualidad = () => {
     const mesesRestantes = v.plazoMeses - (numMes - 1)
@@ -132,7 +154,7 @@ export function recalcularEstadoVenta(
         numMes += 1
         if (numMes <= v.plazoMeses) {
           saldoMens = mensualidadBase
-          proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+          proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, numMes)
         } else {
           saldoMens = new Decimal(0)
         }

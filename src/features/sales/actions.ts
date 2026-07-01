@@ -56,7 +56,9 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     comisionMonto = calcularComision(precioTotal, comisionPorcentaje)
   }
 
-  const proximaFechaPago = fechaVencimientoMensualidad(data.fechaVenta, data.diaPago, 1)
+  // El usuario captura la fecha del primer pago; el día de pago se deriva de ella.
+  const diaPago = data.fechaPrimerPago.getUTCDate()
+  const proximaFechaPago = fechaVencimientoMensualidad(data.fechaPrimerPago, diaPago, 1)
   try {
     const venta = await prisma.$transaction(async (tx) => {
       const v = await tx.venta.create({
@@ -70,7 +72,8 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
           montoFinanciado: montoFinanciado.toFixed(2),
           mensualidadBase: mensualidad.toFixed(2),
           plazoMeses: data.plazoMeses,
-          diaPago: data.diaPago,
+          diaPago,
+          fechaPrimerPago: data.fechaPrimerPago,
           interesMoratorioPorcentaje: new Decimal(data.interesMoratorioPorcentaje).toFixed(2),
           proximaFechaPago,
           saldoMensualidadActual: mensualidad.toFixed(2),
@@ -261,8 +264,9 @@ export async function reactivarLote(loteId: string): Promise<ActionResult<null>>
 }
 
 /**
- * Actualizar la fecha de venta de un crédito activo.
- * Esto recalcula la próxima fecha de pago y actualiza la fecha del pago de enganche.
+ * Cambiar el día de pago de un crédito activo.
+ * Reubica el ancla del calendario (fechaPrimerPago) al nuevo día y recalcula
+ * la próxima fecha de pago para la mensualidad en curso.
  */
 export async function updateDiaPago(ventaId: string, nuevoDiaPago: number): Promise<ActionResult<null>> {
   await requireCaptura()
@@ -275,12 +279,26 @@ export async function updateDiaPago(ventaId: string, nuevoDiaPago: number): Prom
   if (!venta) return fail("Venta no encontrada")
   if (venta.estatus !== "ACTIVO") return fail("Solo se puede modificar ventas activas")
 
-  const nuevaProximaFechaPago = fechaVencimientoMensualidad(venta.fechaVenta, nuevoDiaPago, venta.numeroMensualidadActual)
+  // Reubicar el ancla (fechaPrimerPago) al nuevo día del mismo mes/año, recortando
+  // al último día si el mes no tiene ese día.
+  const anclaActual = venta.fechaPrimerPago ?? venta.fechaVenta
+  const nuevaFechaPrimerPago = new Date(
+    Date.UTC(anclaActual.getUTCFullYear(), anclaActual.getUTCMonth(), nuevoDiaPago, 12, 0, 0),
+  )
+  if (nuevaFechaPrimerPago.getUTCMonth() !== anclaActual.getUTCMonth()) {
+    nuevaFechaPrimerPago.setUTCDate(0)
+  }
+  const nuevaProximaFechaPago = fechaVencimientoMensualidad(
+    nuevaFechaPrimerPago,
+    nuevoDiaPago,
+    venta.numeroMensualidadActual,
+  )
 
   await prisma.venta.update({
     where: { id: ventaId },
     data: {
       diaPago: nuevoDiaPago,
+      fechaPrimerPago: nuevaFechaPrimerPago,
       proximaFechaPago: nuevaProximaFechaPago,
     },
   })
@@ -303,14 +321,13 @@ export async function updateFechaVenta(ventaId: string, fechaVentaStr: string): 
   if (!venta) return fail("Venta no encontrada")
   if (venta.estatus !== "ACTIVO") return fail("Solo se puede modificar la fecha de ventas activas")
 
-  const nuevaProximaFechaPago = fechaVencimientoMensualidad(fechaVenta, venta.diaPago, venta.numeroMensualidadActual)
-
+  // El calendario de pagos se ancla en fechaPrimerPago, no en la fecha de venta,
+  // así que cambiar la fecha de venta no altera los vencimientos.
   await prisma.$transaction([
     prisma.venta.update({
       where: { id: ventaId },
       data: {
         fechaVenta,
-        proximaFechaPago: nuevaProximaFechaPago,
       },
     }),
     // Actualizar la fecha del pago de enganche para que coincida

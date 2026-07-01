@@ -13,9 +13,16 @@ export default auth((req) => {
     url.searchParams.set("callbackUrl", pathname)
     return NextResponse.redirect(url)
   }
-  // ADMIN-only sections
+  const role = req.auth.user?.role
+
+  // Sección exclusiva del rol SYSTEM (ni ADMIN puede entrar).
+  if (pathname.startsWith("/desarrollador") && role !== "SYSTEM") {
+    return NextResponse.redirect(new URL("/", req.url))
+  }
+
+  // Secciones ADMIN (SYSTEM también puede, por ser superusuario).
   const adminPaths = ["/traspasos", "/recuperaciones", "/usuarios", "/reportes"]
-  if (adminPaths.some((p) => pathname.startsWith(p)) && req.auth.user?.role !== "ADMIN") {
+  if (adminPaths.some((p) => pathname.startsWith(p)) && role !== "ADMIN" && role !== "SYSTEM") {
     return NextResponse.redirect(new URL("/", req.url))
   }
   return NextResponse.next()
