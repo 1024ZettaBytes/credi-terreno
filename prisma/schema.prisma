@@ -38,6 +38,13 @@ enum UserRole {
   SYSTEM
 }
 
+enum ModalidadPago {
+  // Crédito en mensualidades (comportamiento estándar).
+  MENSUALIDADES
+  // Enganche + una sola fecha límite para liquidar el saldo restante.
+  FECHA_LIMITE
+}
+
 // ============================================================
 // INVENTORY: MANZANA + LOTE
 // ============================================================
@@ -144,6 +151,10 @@ model Venta {
   // Fecha de vencimiento de la mensualidad #1. Ancla el calendario de pagos.
   // Las mensualidades siguientes se calculan sumando meses a esta fecha.
   fechaPrimerPago            DateTime?
+  // Modalidad de pago del crédito.
+  modalidadPago              ModalidadPago @default(MENSUALIDADES)
+  // Solo para modalidad FECHA_LIMITE: fecha en que debe liquidarse el saldo.
+  fechaLimitePago            DateTime?
   interesMoratorioPorcentaje Decimal      @db.Decimal(5, 2) @default(5.0)
 
   // Estado vivo del crédito (se actualiza con cada pago)

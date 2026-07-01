@@ -34,6 +34,7 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
   if (!venta) notFound()
 
   const canEdit = user?.role === "ADMIN" || user?.role === "CAPTURA"
+  const esFechaLimite = venta.modalidadPago === "FECHA_LIMITE"
 
   const estadoSerializado = estado
     ? {
@@ -69,10 +70,14 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
 
       {estadoSerializado && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiBox label="Saldo capital" value={formatearMoneda(estadoSerializado.saldoCapital)} />
+          <KpiBox label={esFechaLimite ? "Saldo restante" : "Saldo capital"} value={formatearMoneda(estadoSerializado.saldoCapital)} />
           <KpiBox label="Mora acumulada" value={formatearMoneda(estadoSerializado.moraPendiente)} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
           <KpiBox label="Adeudo total" value={formatearMoneda(estadoSerializado.totalDeuda)} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
-          <KpiBox label="Mensualidades" value={`${estadoSerializado.mensualidadesPagadas}/${venta.plazoMeses}`} />
+          {esFechaLimite ? (
+            <KpiBox label="Fecha límite" value={venta.fechaLimitePago ? formatearFecha(venta.fechaLimitePago) : "—"} accent={estadoSerializado.estaEnMora ? "red" : undefined} />
+          ) : (
+            <KpiBox label="Mensualidades" value={`${estadoSerializado.mensualidadesPagadas}/${venta.plazoMeses}`} />
+          )}
         </div>
       )}
 
@@ -125,17 +130,28 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
           <CardHeader><CardTitle className="text-lg">Detalles</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Fecha venta" value={formatearFecha(venta.fechaVenta)} />
+            <Row label="Modalidad" value={esFechaLimite ? "Pago único a fecha límite" : "Mensualidades"} />
             <Row label="Precio total" value={formatearMoneda(venta.precioTotal)} />
             <Row label="Enganche" value={formatearMoneda(venta.enganche)} />
             <Row label="Financiado" value={formatearMoneda(venta.montoFinanciado)} />
-            <Row label="Mensualidad" value={formatearMoneda(venta.mensualidadBase)} />
-            <Row label="Plazo" value={`${venta.plazoMeses} meses`} />
-            <Row label="Día de pago" value={`día ${venta.diaPago}`} />
-            {venta.fechaPrimerPago && (
-              <Row label="Primer pago" value={formatearFecha(venta.fechaPrimerPago)} />
-            )}
-            {estadoSerializado && !estadoSerializado.liquidado && (
-              <Row label="Próximo pago" value={formatearFecha(estadoSerializado.proximaFechaPago)} />
+            {esFechaLimite ? (
+              <>
+                {venta.fechaLimitePago && (
+                  <Row label="Fecha límite" value={formatearFecha(venta.fechaLimitePago)} />
+                )}
+              </>
+            ) : (
+              <>
+                <Row label="Mensualidad" value={formatearMoneda(venta.mensualidadBase)} />
+                <Row label="Plazo" value={`${venta.plazoMeses} meses`} />
+                <Row label="Día de pago" value={`día ${venta.diaPago}`} />
+                {venta.fechaPrimerPago && (
+                  <Row label="Primer pago" value={formatearFecha(venta.fechaPrimerPago)} />
+                )}
+                {estadoSerializado && !estadoSerializado.liquidado && (
+                  <Row label="Próximo pago" value={formatearFecha(estadoSerializado.proximaFechaPago)} />
+                )}
+              </>
             )}
             <Row label="% Mora mensual" value={`${venta.interesMoratorioPorcentaje}%`} />
             {venta.vendedor && (

@@ -3,9 +3,10 @@ import type {
   EstatusVenta,
   TipoPago,
   UserRole,
+  ModalidadPago,
 } from "@prisma/client"
 
-export type { EstatusLote, EstatusVenta, TipoPago, UserRole }
+export type { EstatusLote, EstatusVenta, TipoPago, UserRole, ModalidadPago }
 
 export interface ManzanaDTO {
   id: string
@@ -112,6 +113,8 @@ export interface VentaDTO {
   plazoMeses: number
   diaPago: number
   fechaPrimerPago: string | null
+  modalidadPago: ModalidadPago
+  fechaLimitePago: string | null
   interesMoratorioPorcentaje: string
   comisionPorcentaje: string
   comisionMonto: string

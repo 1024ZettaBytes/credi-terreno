@@ -23,6 +23,8 @@ function toVentaDTO(v: Awaited<ReturnType<typeof prisma.venta.findUniqueOrThrow>
     plazoMeses: v.plazoMeses,
     diaPago: v.diaPago,
     fechaPrimerPago: v.fechaPrimerPago ? formatDateISO(v.fechaPrimerPago) : null,
+    modalidadPago: v.modalidadPago,
+    fechaLimitePago: v.fechaLimitePago ? formatDateISO(v.fechaLimitePago) : null,
     interesMoratorioPorcentaje: v.interesMoratorioPorcentaje.toFixed(2),
     comisionPorcentaje: v.comisionPorcentaje.toFixed(2),
     comisionMonto: v.comisionMonto.toFixed(2),
