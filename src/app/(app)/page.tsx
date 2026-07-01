@@ -3,10 +3,10 @@ import { listManzanas, listLotes } from "@/features/inventory/queries"
 import { listClientes } from "@/features/clients/queries"
 import { listVendedores } from "@/features/sales/vendor-queries"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { formatearMoneda, formatearFecha } from "@/lib/money"
-import { Layers, Users, FileText, AlertTriangle, CheckCircle2, Clock, Lightbulb, ArrowRight } from "lucide-react"
+import { formatearMoneda } from "@/lib/money"
+import { Layers, Users, FileText, AlertTriangle, CheckCircle2, Lightbulb, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { CobranzaPanel, type CobranzaRow } from "./cobranza-client"
 
 export const dynamic = "force-dynamic"
 
@@ -37,6 +37,17 @@ export default async function DashboardPage() {
     0,
   )
 
+  // Serializar para el panel cliente (Decimal/Date no cruzan el límite servidor→cliente).
+  const cobranzaRows: CobranzaRow[] = ventasSemaforo.map(({ venta, estado, semaforo }) => ({
+    id: venta.id,
+    cliente: venta.cliente?.nombre ?? "",
+    loteEtiqueta: `${venta.lote?.manzana?.nombre ?? ""}-${venta.lote?.numLote ?? ""}`,
+    semaforo,
+    diasAtraso: estado.diasAtraso,
+    proximaFechaPago: estado.proximaFechaPago.toISOString(),
+    totalDeuda: estado.totalDeuda.toString(),
+  }))
+
   return (
     <div className="container mx-auto px-4 py-6 md:py-8 space-y-6">
             {/* Tips — solo si hay datos faltantes */}
@@ -62,65 +73,8 @@ export default async function DashboardPage() {
 
 
 
-      {/* Semáforo cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-        <SemaforoCard color="VERDE" count={semaforoStats.VERDE} />
-        <SemaforoCard color="AMARILLO" count={semaforoStats.AMARILLO} />
-        <SemaforoCard color="ROJO" count={semaforoStats.ROJO} />
-      </div>
-
-      {/* Lista de cobranza */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Semáforo de Cobranza</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Verde: al corriente · Amarillo: vencimiento próximo o 1 mensualidad vencida · Rojo: 2+ mensualidades vencidas
-          </p>
-        </CardHeader>
-        <CardContent>
-          {ventasSemaforo.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No hay ventas activas todavía.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {ventasSemaforo
-                .slice()
-                .sort((a, b) => semaforoOrden(b.semaforo) - semaforoOrden(a.semaforo))
-                .map(({ venta, estado, semaforo }) => (
-                  <Link
-                    key={venta.id}
-                    href={`/ventas/${venta.id}`}
-                    className="block border rounded-lg p-3 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <SemaforoDot color={semaforo} />
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">
-                            {venta.cliente?.nombre} — {venta.lote?.manzana?.nombre}-{venta.lote?.numLote}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {estado.diasAtraso > 0
-                              ? `${estado.diasAtraso} día(s) de atraso`
-                              : `Próximo vencimiento: ${formatearFecha(estado.proximaFechaPago.toISOString())}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Adeudo</p>
-                          <p className="font-semibold">{formatearMoneda(estado.totalDeuda)}</p>
-                        </div>
-                        <Badge variant={badgeVariant(semaforo)}>{labelSemaforo(semaforo)}</Badge>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Semáforo de cobranza con filtro por colores */}
+      <CobranzaPanel rows={cobranzaRows} stats={semaforoStats} />
     </div>
   )
 }
@@ -154,47 +108,6 @@ function KpiCard({
       </CardContent>
     </Card>
   )
-}
-
-function SemaforoCard({ color, count }: { color: "VERDE" | "AMARILLO" | "ROJO"; count: number }) {
-  const cfg = {
-    VERDE: { bg: "bg-green-50", text: "text-green-700", icon: CheckCircle2, label: "Al corriente" },
-    AMARILLO: { bg: "bg-yellow-50", text: "text-yellow-700", icon: Clock, label: "Por vencer / 1 vencida" },
-    ROJO: { bg: "bg-red-50", text: "text-red-700", icon: AlertTriangle, label: "En mora" },
-  }[color]
-  const Icon = cfg.icon
-  return (
-    <Card className={cfg.bg}>
-      <CardContent className="p-4 flex items-center gap-4">
-        <Icon className={`h-10 w-10 ${cfg.text}`} />
-        <div>
-          <p className={`text-3xl font-bold ${cfg.text}`}>{count}</p>
-          <p className={`text-sm ${cfg.text}`}>{cfg.label}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function SemaforoDot({ color }: { color: "VERDE" | "AMARILLO" | "ROJO" }) {
-  const cls = {
-    VERDE: "bg-green-500",
-    AMARILLO: "bg-yellow-500",
-    ROJO: "bg-red-500",
-  }[color]
-  return <span className={`inline-block w-3 h-3 rounded-full ${cls} flex-shrink-0`} />
-}
-
-function semaforoOrden(c: "VERDE" | "AMARILLO" | "ROJO"): number {
-  return c === "ROJO" ? 3 : c === "AMARILLO" ? 2 : 1
-}
-function labelSemaforo(c: "VERDE" | "AMARILLO" | "ROJO"): string {
-  return c === "VERDE" ? "Al día" : c === "AMARILLO" ? "Atención" : "En mora"
-}
-function badgeVariant(
-  c: "VERDE" | "AMARILLO" | "ROJO",
-): "success" | "warning" | "destructive" {
-  return c === "VERDE" ? "success" : c === "AMARILLO" ? "warning" : "destructive"
 }
 
 function OnboardingTips({

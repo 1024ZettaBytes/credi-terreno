@@ -111,6 +111,7 @@ export interface VentaDTO {
   mensualidadBase: string
   plazoMeses: number
   diaPago: number
+  fechaPrimerPago: string | null
   interesMoratorioPorcentaje: string
   comisionPorcentaje: string
   comisionMonto: string

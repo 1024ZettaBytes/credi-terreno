@@ -34,6 +34,8 @@ enum UserRole {
   ADMIN
   CAPTURA
   VISUALIZACION
+  // Rol de desarrollador/superusuario. Acceso exclusivo a la página "Desarrollador".
+  SYSTEM
 }
 
 // ============================================================
@@ -139,6 +141,9 @@ model Venta {
   mensualidadBase            Decimal      @db.Decimal(12, 2)
   plazoMeses                 Int
   diaPago                    Int
+  // Fecha de vencimiento de la mensualidad #1. Ancla el calendario de pagos.
+  // Las mensualidades siguientes se calculan sumando meses a esta fecha.
+  fechaPrimerPago            DateTime?
   interesMoratorioPorcentaje Decimal      @db.Decimal(5, 2) @default(5.0)
 
   // Estado vivo del crédito (se actualiza con cada pago)

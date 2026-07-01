@@ -24,6 +24,7 @@ interface VentaSnapshot {
   id: string
   fechaVenta: Date
   diaPago: number
+  fechaPrimerPago: Date
   plazoMeses: number
   mensualidadBase: Decimal
   interesMoratorioPorcentaje: Decimal
@@ -130,7 +131,7 @@ function simularDistribucion(
       const fechaVenc =
         numMes === v.numeroMensualidadActual
           ? proximaFechaPago
-          : fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+          : fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, numMes)
       items.push({
         tipo: "MENSUALIDAD",
         monto: aplicado.toFixed(2),
@@ -145,7 +146,7 @@ function simularDistribucion(
         numMes += 1
         if (numMes <= v.plazoMeses) {
           saldoMens = mensualidadBase
-          proximaFechaPago = fechaVencimientoMensualidad(v.fechaVenta, v.diaPago, numMes)
+          proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, numMes)
         } else {
           saldoMens = new Decimal(0)
         }
@@ -191,6 +192,7 @@ function ventaToSnapshot(v: {
   id: string
   fechaVenta: Date
   diaPago: number
+  fechaPrimerPago: Date | null
   plazoMeses: number
   mensualidadBase: import("decimal.js").Decimal
   interesMoratorioPorcentaje: import("decimal.js").Decimal
@@ -203,6 +205,8 @@ function ventaToSnapshot(v: {
     id: v.id,
     fechaVenta: v.fechaVenta,
     diaPago: v.diaPago,
+    // Fallback a fechaVenta solo para filas heredadas no rellenadas (ver backfill).
+    fechaPrimerPago: v.fechaPrimerPago ?? v.fechaVenta,
     plazoMeses: v.plazoMeses,
     mensualidadBase: toDecimal(v.mensualidadBase),
     interesMoratorioPorcentaje: toDecimal(v.interesMoratorioPorcentaje),
@@ -373,6 +377,7 @@ export async function deletePago(pagoId: string): Promise<ActionResult<null>> {
         {
           fechaVenta: venta.fechaVenta,
           diaPago: venta.diaPago,
+          fechaPrimerPago: venta.fechaPrimerPago ?? venta.fechaVenta,
           plazoMeses: venta.plazoMeses,
           montoFinanciado: venta.montoFinanciado,
         },
