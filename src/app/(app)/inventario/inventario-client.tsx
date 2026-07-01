@@ -683,8 +683,10 @@ function VenderDialog({
     vendedorId: "",
     fechaVenta: todayLocal(),
     enganche: "",
+    modalidadPago: "MENSUALIDADES" as "MENSUALIDADES" | "FECHA_LIMITE",
     plazoMeses: "12",
     fechaPrimerPago: unMesDespues(todayLocal()),
+    fechaLimitePago: unMesDespues(todayLocal()),
     interesMoratorioPorcentaje: "10",
     notas: "",
   });
@@ -700,7 +702,9 @@ function VenderDialog({
   const recargoAplica = sinEnganche || engancheCapturado === 0;
   const precio = recargoAplica ? precioBase + RECARGO_SIN_ENGANCHE : precioBase;
   const plazo = Number(form.plazoMeses || 1);
+  const esFechaLimite = form.modalidadPago === "FECHA_LIMITE";
   const mensualidad = plazo > 0 ? (precio - enganche) / plazo : 0;
+  const restante = precio - enganche;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -716,7 +720,9 @@ function VenderDialog({
         plazoMeses: Number(form.plazoMeses),
         interesMoratorioPorcentaje: Number(form.interesMoratorioPorcentaje),
         fechaVenta: parseLocalDate(form.fechaVenta),
-        fechaPrimerPago: parseLocalDate(form.fechaPrimerPago),
+        // Solo se envía la fecha relevante según la modalidad.
+        fechaPrimerPago: esFechaLimite ? null : parseLocalDate(form.fechaPrimerPago),
+        fechaLimitePago: esFechaLimite ? parseLocalDate(form.fechaLimitePago) : null,
       });
       if (!r.ok) {
         setError(r.error);
@@ -824,6 +830,28 @@ function VenderDialog({
               precio)
             </Label>
           </div>
+          <div className="space-y-1">
+            <Label>Modalidad de pago</Label>
+            <Select
+              value={form.modalidadPago}
+              onValueChange={(v) =>
+                setForm({ ...form, modalidadPago: v as "MENSUALIDADES" | "FECHA_LIMITE" })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MENSUALIDADES">Mensualidades</SelectItem>
+                <SelectItem value="FECHA_LIMITE">Pago único a fecha límite</SelectItem>
+              </SelectContent>
+            </Select>
+            <FieldHint>
+              {esFechaLimite
+                ? "Enganche + una sola fecha límite para liquidar el restante (sin mensualidades)."
+                : "Crédito pagadero en mensualidades."}
+            </FieldHint>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Enganche</Label>
@@ -839,21 +867,23 @@ function VenderDialog({
               />
               <FieldError errors={fieldErrors.enganche} />
             </div>
-            <div className="space-y-1">
-              <Label>Plazo (meses)</Label>
-              <Input
-                type="number"
-                min="1"
-                max="360"
-                value={form.plazoMeses}
-                onChange={(e) =>
-                  setForm({ ...form, plazoMeses: e.target.value })
-                }
-                required
-              />
-              <FieldError errors={fieldErrors.plazoMeses} />
-              <FieldHint>1-360 meses</FieldHint>
-            </div>
+            {!esFechaLimite && (
+              <div className="space-y-1">
+                <Label>Plazo (meses)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="360"
+                  value={form.plazoMeses}
+                  onChange={(e) =>
+                    setForm({ ...form, plazoMeses: e.target.value })
+                  }
+                  required
+                />
+                <FieldError errors={fieldErrors.plazoMeses} />
+                <FieldHint>1-360 meses</FieldHint>
+              </div>
+            )}
             <div className="space-y-1">
               <Label>% mora mensual</Label>
               <Input
@@ -874,20 +904,37 @@ function VenderDialog({
               <FieldHint>0-100%</FieldHint>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label>Fecha del primer pago</Label>
-            <DatePicker
-              value={form.fechaPrimerPago}
-              onChange={(v) => setForm({ ...form, fechaPrimerPago: v })}
-              required
-            />
-            <FieldError errors={fieldErrors.fechaPrimerPago} />
-            <FieldHint>
-              {form.fechaPrimerPago
-                ? `Primera mensualidad: ${formatearFecha(parseLocalDate(form.fechaPrimerPago))}. Las siguientes vencen el día ${parseLocalDate(form.fechaPrimerPago).getUTCDate()} de cada mes.`
-                : "Selecciona cuándo vence la primera mensualidad. El día de pago mensual se toma de esta fecha."}
-            </FieldHint>
-          </div>
+          {esFechaLimite ? (
+            <div className="space-y-1">
+              <Label>Fecha límite de pago</Label>
+              <DatePicker
+                value={form.fechaLimitePago}
+                onChange={(v) => setForm({ ...form, fechaLimitePago: v })}
+                required
+              />
+              <FieldError errors={fieldErrors.fechaLimitePago} />
+              <FieldHint>
+                {form.fechaLimitePago
+                  ? `El saldo restante debe liquidarse a más tardar el ${formatearFecha(parseLocalDate(form.fechaLimitePago))}.`
+                  : "Selecciona la fecha límite para liquidar el restante."}
+              </FieldHint>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Fecha del primer pago</Label>
+              <DatePicker
+                value={form.fechaPrimerPago}
+                onChange={(v) => setForm({ ...form, fechaPrimerPago: v })}
+                required
+              />
+              <FieldError errors={fieldErrors.fechaPrimerPago} />
+              <FieldHint>
+                {form.fechaPrimerPago
+                  ? `Primera mensualidad: ${formatearFecha(parseLocalDate(form.fechaPrimerPago))}. Las siguientes vencen el día ${parseLocalDate(form.fechaPrimerPago).getUTCDate()} de cada mes.`
+                  : "Selecciona cuándo vence la primera mensualidad. El día de pago mensual se toma de esta fecha."}
+              </FieldHint>
+            </div>
+          )}
           <div className="bg-blue-50 p-3 rounded text-sm space-y-1">
             {recargoAplica && (
               <>
@@ -919,12 +966,19 @@ function VenderDialog({
                 {formatearMoneda(precio - enganche)}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span>Mensualidad estimada:</span>
-              <span className="font-semibold">
-                {formatearMoneda(mensualidad)}
-              </span>
-            </div>
+            {esFechaLimite ? (
+              <div className="flex justify-between">
+                <span>Restante a liquidar:</span>
+                <span className="font-semibold">{formatearMoneda(restante)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span>Mensualidad estimada:</span>
+                <span className="font-semibold">
+                  {formatearMoneda(mensualidad)}
+                </span>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <Label>Notas</Label>

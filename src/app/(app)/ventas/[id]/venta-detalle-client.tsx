@@ -7,6 +7,7 @@ import {
   ArrowRightLeft,
   RotateCcw,
   CalendarDays,
+  CalendarClock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import {
   liquidarVenta,
   updateFechaVenta,
   updateDiaPago,
+  convertirAFechaLimite,
 } from "@/features/sales/actions";
 import { FieldError, FieldHint, FormError } from "@/components/ui/field-error";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -81,12 +83,14 @@ export function VentaDetalleClient({
   const [openRecuperacion, setOpenRecuperacion] = useState(false);
   const [openEditFecha, setOpenEditFecha] = useState(false);
   const [openEditDiaPago, setOpenEditDiaPago] = useState(false);
+  const [openConvertir, setOpenConvertir] = useState(false);
   const isAdmin = userRole === "ADMIN";
   const canEdit = userRole === "ADMIN" || userRole === "CAPTURA";
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const isActiva = venta.estatus === "ACTIVO";
+  const esFechaLimite = venta.modalidadPago === "FECHA_LIMITE";
 
   return (
     <>
@@ -100,15 +104,18 @@ export function VentaDetalleClient({
           <CardContent className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span>
-                Mensualidad #{estado.numeroMensualidadActual} (vencida{" "}
-                {formatearFecha(estado.proximaFechaPago)})
+                {esFechaLimite
+                  ? `Fecha límite vencida (${formatearFecha(estado.proximaFechaPago)})`
+                  : `Mensualidad #${estado.numeroMensualidadActual} (vencida ${formatearFecha(estado.proximaFechaPago)})`}
               </span>
               <span className="font-semibold">{estado.diasAtraso} día(s)</span>
             </div>
             <div className="flex justify-between">
-              <span>Saldo del mes</span>
+              <span>{esFechaLimite ? "Saldo restante" : "Saldo del mes"}</span>
               <span className="font-semibold">
-                {formatearMoneda(estado.saldoMensualidadActual)}
+                {formatearMoneda(
+                  esFechaLimite ? estado.saldoCapital : estado.saldoMensualidadActual,
+                )}
               </span>
             </div>
             <div className="flex justify-between border-t pt-1">
@@ -129,11 +136,18 @@ export function VentaDetalleClient({
           <Button variant="outline" onClick={() => setOpenEditFecha(true)}>
             <CalendarDays className="h-4 w-4" /> Editar fecha de venta
           </Button>
-          <Button variant="outline" onClick={() => setOpenEditDiaPago(true)}>
-            <CalendarDays className="h-4 w-4" /> Cambiar día de pago
-          </Button>
+          {!esFechaLimite && (
+            <Button variant="outline" onClick={() => setOpenEditDiaPago(true)}>
+              <CalendarDays className="h-4 w-4" /> Cambiar día de pago
+            </Button>
+          )}
           {isAdmin && (
             <>
+              {!esFechaLimite && (
+                <Button variant="outline" onClick={() => setOpenConvertir(true)}>
+                  <CalendarClock className="h-4 w-4" /> Cambiar a fecha límite
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setOpenTraspaso(true)}>
                 <ArrowRightLeft className="h-4 w-4" /> Traspasar
               </Button>
@@ -220,7 +234,79 @@ export function VentaDetalleClient({
           onDone={() => router.refresh()}
         />
       )}
+      {openConvertir && (
+        <ConvertirFechaLimiteDialog
+          open={openConvertir}
+          onOpenChange={setOpenConvertir}
+          venta={venta}
+          estado={estado}
+          onDone={() => router.refresh()}
+        />
+      )}
     </>
+  );
+}
+
+function ConvertirFechaLimiteDialog({
+  open,
+  onOpenChange,
+  venta,
+  estado,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  venta: VentaDTO;
+  estado: EstadoSerializado | null;
+  onDone: () => void;
+}) {
+  const [fechaLimitePago, setFechaLimitePago] = useState(todayLocal());
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    startTransition(async () => {
+      const r = await convertirAFechaLimite({ ventaId: venta.id, fechaLimitePago: parseLocalDate(fechaLimitePago) });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      toast.success("Venta convertida a pago único a fecha límite");
+      onOpenChange(false);
+      onDone();
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Cambiar a fecha límite</DialogTitle>
+          <DialogDescription>
+            El saldo restante ({formatearMoneda(estado?.saldoCapital ?? venta.montoFinanciado)}) se
+            liquidará en una o varias exhibiciones a más tardar en la fecha límite. Los pagos
+            ya registrados no se modifican.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1">
+            <Label>Fecha límite de pago</Label>
+            <DatePicker value={fechaLimitePago} onChange={setFechaLimitePago} required />
+          </div>
+          <FormError error={error} />
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando..." : "Convertir"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -238,9 +324,11 @@ function PagoDialog({
   onDone: () => void;
 }) {
   type TipoPago = "MENSUALIDAD" | "ABONO_CAPITAL" | "MORATORIO" | "LIQUIDACION";
+  const esFechaLimite = venta.modalidadPago === "FECHA_LIMITE";
   const [form, setForm] = useState({
-    monto: venta.mensualidadBase,
-    tipo: "MENSUALIDAD" as TipoPago,
+    // En fecha límite el monto sugerido es el saldo restante y el pago es un abono.
+    monto: esFechaLimite ? (estado?.saldoCapital ?? venta.mensualidadBase) : venta.mensualidadBase,
+    tipo: (esFechaLimite ? "ABONO_CAPITAL" : "MENSUALIDAD") as TipoPago,
     fechaRegistro: todayLocal(),
     notas: "",
     cobrarMoraAutomatica: false,
@@ -340,25 +428,45 @@ function PagoDialog({
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
           <DialogDescription>
-            Mensualidad: {formatearMoneda(venta.mensualidadBase)} · Día{" "}
-            {venta.diaPago}
-            {estado && (
-              <span className="block mt-1">
-                Próximo vencimiento:{" "}
-                <span className="font-semibold">
-                  {formatearFecha(estado.proximaFechaPago)}
-                </span>
-                {estado.diasAtraso > 0 && (
-                  <span className="text-red-600">
-                    {" "}
-                    · {estado.diasAtraso} día(s) de atraso
+            {esFechaLimite ? (
+              <>
+                Saldo restante: {formatearMoneda(estado?.saldoCapital ?? venta.montoFinanciado)}
+                {venta.fechaLimitePago && (
+                  <span className="block mt-1">
+                    Fecha límite:{" "}
+                    <span className="font-semibold">
+                      {formatearFecha(venta.fechaLimitePago)}
+                    </span>
+                    {estado && estado.diasAtraso > 0 && (
+                      <span className="text-red-600"> · {estado.diasAtraso} día(s) de atraso</span>
+                    )}
                   </span>
                 )}
-              </span>
+              </>
+            ) : (
+              <>
+                Mensualidad: {formatearMoneda(venta.mensualidadBase)} · Día{" "}
+                {venta.diaPago}
+                {estado && (
+                  <span className="block mt-1">
+                    Próximo vencimiento:{" "}
+                    <span className="font-semibold">
+                      {formatearFecha(estado.proximaFechaPago)}
+                    </span>
+                    {estado.diasAtraso > 0 && (
+                      <span className="text-red-600">
+                        {" "}
+                        · {estado.diasAtraso} día(s) de atraso
+                      </span>
+                    )}
+                  </span>
+                )}
+              </>
             )}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
+          {!esFechaLimite && (
           <div className="space-y-1">
             <Label>Tipo</Label>
             <Select
@@ -398,6 +506,12 @@ function PagoDialog({
                 "Cubre mora + saldo capital total."}
             </p>
           </div>
+          )}
+          {esFechaLimite && (
+            <p className="text-xs text-muted-foreground">
+              Abono al saldo restante. Si hay mora tras la fecha límite, marca la casilla para cobrarla.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Monto</Label>

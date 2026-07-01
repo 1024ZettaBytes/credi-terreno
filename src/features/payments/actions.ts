@@ -26,6 +26,7 @@ interface VentaSnapshot {
   diaPago: number
   fechaPrimerPago: Date
   plazoMeses: number
+  modalidadPago: "MENSUALIDADES" | "FECHA_LIMITE"
   mensualidadBase: Decimal
   interesMoratorioPorcentaje: Decimal
   proximaFechaPago: Date
@@ -103,6 +104,41 @@ function simularDistribucion(
     const nuevaMens = saldoCapital.dividedBy(mesesRestantes).toDecimalPlaces(2)
     mensualidadBase = nuevaMens
     saldoMens = Decimal.max(nuevaMens.minus(pagadoEsteMes), new Decimal(0))
+  }
+
+  // Modalidad FECHA_LIMITE: sin mensualidades. Los pagos son abonos que reducen
+  // el saldo restante; la mora (si el % > 0) se cobra sobre el saldo tras la fecha límite.
+  if (v.modalidadPago === "FECHA_LIMITE") {
+    const aplicaMora = tipo === "MORATORIO" || tipo === "LIQUIDACION" || cobrarMoraAutomatica
+    if (aplicaMora) aplicarMora()
+    if (tipo !== "MORATORIO" && restante.greaterThan(0) && saldoCapital.greaterThan(0)) {
+      const aplicado = Decimal.min(restante, saldoCapital)
+      items.push({
+        tipo: "ABONO_CAPITAL",
+        monto: aplicado.toFixed(2),
+        descripcion: "Abono al saldo",
+      })
+      saldoCapital = saldoCapital.minus(aplicado)
+      restante = restante.minus(aplicado)
+    }
+    const totalAplicadoFL = monto.minus(restante)
+    const saldoFinalFL = Decimal.max(saldoCapital, new Decimal(0))
+    return {
+      diasAtraso,
+      moraDebida: moraDebida.toFixed(2),
+      items,
+      totalAplicado: totalAplicadoFL.toFixed(2),
+      sobrante: restante.toFixed(2),
+      saldoCapitalAntes: v.saldoCapital.toFixed(2),
+      saldoCapitalDespues: saldoFinalFL.toFixed(2),
+      mensualidadAntes: v.mensualidadBase.toFixed(2),
+      // En FECHA_LIMITE la "mensualidad" espeja el saldo restante (no se usa como cuota).
+      mensualidadDespues: saldoFinalFL.toFixed(2),
+      saldoMensualidadActualDespues: saldoFinalFL.toFixed(2),
+      numeroMensualidadActualDespues: 1,
+      proximaFechaPagoDespues: formatDateISO(v.proximaFechaPago),
+      liquidaCredito: saldoCapital.lessThanOrEqualTo(0),
+    }
   }
 
   if (tipo === "MORATORIO") {
@@ -194,6 +230,7 @@ function ventaToSnapshot(v: {
   diaPago: number
   fechaPrimerPago: Date | null
   plazoMeses: number
+  modalidadPago: "MENSUALIDADES" | "FECHA_LIMITE"
   mensualidadBase: import("decimal.js").Decimal
   interesMoratorioPorcentaje: import("decimal.js").Decimal
   proximaFechaPago: Date
@@ -208,6 +245,7 @@ function ventaToSnapshot(v: {
     // Fallback a fechaVenta solo para filas heredadas no rellenadas (ver backfill).
     fechaPrimerPago: v.fechaPrimerPago ?? v.fechaVenta,
     plazoMeses: v.plazoMeses,
+    modalidadPago: v.modalidadPago,
     mensualidadBase: toDecimal(v.mensualidadBase),
     interesMoratorioPorcentaje: toDecimal(v.interesMoratorioPorcentaje),
     proximaFechaPago: v.proximaFechaPago,

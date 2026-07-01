@@ -12,16 +12,36 @@ export const ventaSchema = z
     vendedorId: z.string().optional().nullable(),
     fechaVenta: dateOnlySchema.default(() => parseLocalDate(new Date())),
     enganche: z.coerce.number().min(0, "Enganche debe ser ≥ 0"),
-    plazoMeses: z.coerce.number().int().min(1, "Plazo mínimo 1 mes").max(360, "Plazo máximo 360 meses"),
-    fechaPrimerPago: dateOnlySchema,
+    modalidadPago: z.enum(["MENSUALIDADES", "FECHA_LIMITE"]).default("MENSUALIDADES"),
+    // En FECHA_LIMITE el plazo no aplica; se acepta por defecto 1.
+    plazoMeses: z.coerce.number().int().min(1, "Plazo mínimo 1 mes").max(360, "Plazo máximo 360 meses").default(1),
+    fechaPrimerPago: dateOnlySchema.optional().nullable(),
+    fechaLimitePago: dateOnlySchema.optional().nullable(),
     interesMoratorioPorcentaje: z.coerce.number().min(0, "Mínimo 0%").max(100, "Máximo 100%").default(5),
     notas: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
   })
-  .refine((d) => d.fechaPrimerPago.getTime() >= d.fechaVenta.getTime(), {
-    message: "La fecha del primer pago no puede ser anterior a la fecha de venta",
-    path: ["fechaPrimerPago"],
+  .superRefine((d, ctx) => {
+    if (d.modalidadPago === "MENSUALIDADES") {
+      if (!d.fechaPrimerPago) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fechaPrimerPago"], message: "Fecha del primer pago requerida" })
+      } else if (d.fechaPrimerPago.getTime() < d.fechaVenta.getTime()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fechaPrimerPago"], message: "No puede ser anterior a la fecha de venta" })
+      }
+    } else {
+      if (!d.fechaLimitePago) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fechaLimitePago"], message: "Fecha límite requerida" })
+      } else if (d.fechaLimitePago.getTime() < d.fechaVenta.getTime()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fechaLimitePago"], message: "No puede ser anterior a la fecha de venta" })
+      }
+    }
   })
 export type VentaInput = z.infer<typeof ventaSchema>
+
+export const convertirFechaLimiteSchema = z.object({
+  ventaId: z.string().min(1),
+  fechaLimitePago: dateOnlySchema,
+})
+export type ConvertirFechaLimiteInput = z.infer<typeof convertirFechaLimiteSchema>
 
 export const traspasoSchema = z.object({
   ventaOriginalId: z.string().min(1),

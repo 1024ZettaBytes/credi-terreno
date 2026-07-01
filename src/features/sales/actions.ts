@@ -8,7 +8,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/action-result"
 import { requireAdmin, requireCaptura } from "@/lib/rbac"
 import { calcularComision, calcularMensualidadBase, calcularPrecioVenta, fechaVencimientoMensualidad } from "@/lib/finance"
 import { parseLocalDate } from "@/lib/date"
-import { ventaSchema, traspasoSchema, recuperacionSchema } from "./schemas"
+import { ventaSchema, traspasoSchema, recuperacionSchema, convertirFechaLimiteSchema } from "./schemas"
 
 function toFriendlyDbError(e: unknown, fallback: string): string {
   if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -45,7 +45,6 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
   if (enganche.greaterThan(precioTotal)) return fail("Enganche no puede superar el precio total")
 
   const montoFinanciado = precioTotal.minus(enganche)
-  const mensualidad = calcularMensualidadBase(precioTotal, enganche, data.plazoMeses)
 
   let comisionPorcentaje = new Decimal(0)
   let comisionMonto = new Decimal(0)
@@ -56,9 +55,34 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     comisionMonto = calcularComision(precioTotal, comisionPorcentaje)
   }
 
-  // El usuario captura la fecha del primer pago; el día de pago se deriva de ella.
-  const diaPago = data.fechaPrimerPago.getUTCDate()
-  const proximaFechaPago = fechaVencimientoMensualidad(data.fechaPrimerPago, diaPago, 1)
+  // Campos que dependen de la modalidad de pago.
+  const esFechaLimite = data.modalidadPago === "FECHA_LIMITE"
+  let plazoMeses: number
+  let mensualidad: Decimal
+  let diaPago: number
+  let fechaPrimerPago: Date
+  let proximaFechaPago: Date
+  let fechaLimitePago: Date | null
+  if (esFechaLimite) {
+    // FECHA_LIMITE: sin mensualidades. Se modela como 1 exhibición que vence en
+    // la fecha límite; la "mensualidad" espeja el saldo restante.
+    const fl = data.fechaLimitePago as Date // requerido por el schema
+    plazoMeses = 1
+    mensualidad = montoFinanciado
+    diaPago = fl.getUTCDate()
+    fechaPrimerPago = fl
+    proximaFechaPago = fl
+    fechaLimitePago = fl
+  } else {
+    // El usuario captura la fecha del primer pago; el día de pago se deriva de ella.
+    const fpp = data.fechaPrimerPago as Date // requerido por el schema
+    plazoMeses = data.plazoMeses
+    mensualidad = calcularMensualidadBase(precioTotal, enganche, data.plazoMeses)
+    diaPago = fpp.getUTCDate()
+    fechaPrimerPago = fpp
+    proximaFechaPago = fechaVencimientoMensualidad(fpp, diaPago, 1)
+    fechaLimitePago = null
+  }
   try {
     const venta = await prisma.$transaction(async (tx) => {
       const v = await tx.venta.create({
@@ -71,9 +95,11 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
           enganche: enganche.toFixed(2),
           montoFinanciado: montoFinanciado.toFixed(2),
           mensualidadBase: mensualidad.toFixed(2),
-          plazoMeses: data.plazoMeses,
+          plazoMeses,
           diaPago,
-          fechaPrimerPago: data.fechaPrimerPago,
+          fechaPrimerPago,
+          modalidadPago: data.modalidadPago,
+          fechaLimitePago,
           interesMoratorioPorcentaje: new Decimal(data.interesMoratorioPorcentaje).toFixed(2),
           proximaFechaPago,
           saldoMensualidadActual: mensualidad.toFixed(2),
@@ -305,6 +331,47 @@ export async function updateDiaPago(ventaId: string, nuevoDiaPago: number): Prom
 
   revalidatePath("/ventas")
   revalidatePath(`/ventas/${ventaId}`)
+  return ok(null)
+}
+
+/**
+ * Convierte una venta activa de mensualidades a modalidad FECHA_LIMITE.
+ * Conserva el saldo capital restante actual; a partir de ahora ese saldo se
+ * liquida (en uno o varios abonos) a más tardar en la fecha límite indicada.
+ * No modifica los pagos ya registrados.
+ */
+export async function convertirAFechaLimite(input: unknown): Promise<ActionResult<null>> {
+  await requireAdmin()
+  const parsed = convertirFechaLimiteSchema.safeParse(input)
+  if (!parsed.success) return failFromZod(parsed.error)
+  const { ventaId, fechaLimitePago } = parsed.data
+
+  const venta = await prisma.venta.findUnique({ where: { id: ventaId } })
+  if (!venta) return fail("Venta no encontrada")
+  if (venta.estatus !== "ACTIVO") return fail("Solo se pueden convertir ventas activas")
+
+  const saldo = toDecimal(venta.saldoCapital)
+  const diaPago = fechaLimitePago.getUTCDate()
+
+  await prisma.venta.update({
+    where: { id: ventaId },
+    data: {
+      modalidadPago: "FECHA_LIMITE",
+      fechaLimitePago,
+      // El saldo restante se convierte en el importe a liquidar en una exhibición.
+      plazoMeses: 1,
+      mensualidadBase: saldo.toFixed(2),
+      saldoMensualidadActual: saldo.toFixed(2),
+      numeroMensualidadActual: 1,
+      diaPago,
+      fechaPrimerPago: fechaLimitePago,
+      proximaFechaPago: fechaLimitePago,
+    },
+  })
+
+  revalidatePath("/ventas")
+  revalidatePath(`/ventas/${ventaId}`)
+  revalidatePath("/")
   return ok(null)
 }
 
