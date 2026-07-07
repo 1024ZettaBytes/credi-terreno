@@ -41,6 +41,8 @@ export default async function DashboardPage() {
   const cobranzaRows: CobranzaRow[] = ventasSemaforo.map(({ venta, estado, semaforo }) => ({
     id: venta.id,
     cliente: venta.cliente?.nombre ?? "",
+    manzana: venta.lote?.manzana?.nombre ?? "",
+    numLote: venta.lote?.numLote ?? "",
     loteEtiqueta: `${venta.lote?.manzana?.nombre ?? ""}-${venta.lote?.numLote ?? ""}`,
     semaforo,
     diasAtraso: estado.diasAtraso,
