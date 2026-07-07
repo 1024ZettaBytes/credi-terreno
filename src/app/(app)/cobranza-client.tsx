@@ -12,12 +12,16 @@ type Color = "VERDE" | "AMARILLO" | "ROJO"
 export interface CobranzaRow {
   id: string
   cliente: string
+  manzana: string
+  numLote: string
   loteEtiqueta: string
   semaforo: Color
   diasAtraso: number
   proximaFechaPago: string
   totalDeuda: string
 }
+
+const natural = new Intl.Collator("es", { numeric: true })
 
 const COLORES: Color[] = ["VERDE", "AMARILLO", "ROJO"]
 
@@ -59,9 +63,11 @@ export function CobranzaPanel({
   // El filtro está "activo" cuando no están las tres seleccionadas.
   const filtroActivo = seleccion.size !== COLORES.length
   const filtradas = filtroActivo ? rows.filter((r) => seleccion.has(r.semaforo)) : rows
-  const ordenadas = filtradas
-    .slice()
-    .sort((a, b) => semaforoOrden(b.semaforo) - semaforoOrden(a.semaforo))
+  const ordenadas = filtradas.slice().sort((a, b) => {
+    const m = natural.compare(a.manzana.trim(), b.manzana.trim())
+    if (m !== 0) return m
+    return natural.compare(a.numLote.trim(), b.numLote.trim())
+  })
 
   return (
     <>
@@ -114,36 +120,50 @@ export function CobranzaPanel({
               Ninguna venta coincide con el filtro seleccionado.
             </p>
           ) : (
-            <div className="space-y-2">
-              {ordenadas.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/ventas/${r.id}`}
-                  className="block border rounded-lg p-3 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <SemaforoDot color={r.semaforo} />
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">
-                          {r.cliente} — {r.loteEtiqueta}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {r.diasAtraso > 0
-                            ? `${r.diasAtraso} día(s) de atraso`
-                            : `Próximo vencimiento: ${formatearFecha(r.proximaFechaPago)}`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Adeudo</p>
-                        <p className="font-semibold">{formatearMoneda(r.totalDeuda)}</p>
-                      </div>
-                      <Badge variant={badgeVariant(r.semaforo)}>{labelSemaforo(r.semaforo)}</Badge>
-                    </div>
+            <div className="space-y-4">
+              {agruparPorManzana(ordenadas).map(({ manzana, filas }) => (
+                <div key={manzana} className="space-y-2">
+                  <div className="sticky top-0 z-10 -mx-1 flex items-center gap-2 bg-slate-100/95 backdrop-blur px-2 py-1 rounded-md border border-slate-200">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                      {manzana}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({filas.length} {filas.length === 1 ? "lote" : "lotes"})
+                    </span>
                   </div>
-                </Link>
+                  <div className="space-y-2">
+                    {filas.map((r) => (
+                      <Link
+                        key={r.id}
+                        href={`/ventas/${r.id}`}
+                        className="block border rounded-lg p-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <SemaforoDot color={r.semaforo} />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {r.cliente} — {r.loteEtiqueta}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {r.diasAtraso > 0
+                                  ? `${r.diasAtraso} día(s) de atraso`
+                                  : `Próximo vencimiento: ${formatearFecha(r.proximaFechaPago)}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">Adeudo</p>
+                              <p className="font-semibold">{formatearMoneda(r.totalDeuda)}</p>
+                            </div>
+                            <Badge variant={badgeVariant(r.semaforo)}>{labelSemaforo(r.semaforo)}</Badge>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -201,12 +221,20 @@ function SemaforoDot({ color }: { color: Color }) {
   return <span className={`inline-block w-3 h-3 rounded-full ${cls} flex-shrink-0`} />
 }
 
-function semaforoOrden(c: Color): number {
-  return c === "ROJO" ? 3 : c === "AMARILLO" ? 2 : 1
-}
 function labelSemaforo(c: Color): string {
   return c === "VERDE" ? "Al día" : c === "AMARILLO" ? "Atención" : "En mora"
 }
 function badgeVariant(c: Color): "success" | "warning" | "destructive" {
   return c === "VERDE" ? "success" : c === "AMARILLO" ? "warning" : "destructive"
+}
+
+function agruparPorManzana(rows: CobranzaRow[]): { manzana: string; filas: CobranzaRow[] }[] {
+  const grupos: { manzana: string; filas: CobranzaRow[] }[] = []
+  for (const r of rows) {
+    const clave = r.manzana.trim() || "SIN MANZANA"
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo && ultimo.manzana === clave) ultimo.filas.push(r)
+    else grupos.push({ manzana: clave, filas: [r] })
+  }
+  return grupos
 }
