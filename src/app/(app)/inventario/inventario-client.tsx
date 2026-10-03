@@ -678,6 +678,7 @@ function VenderDialog({
   onDone: () => void;
 }) {
   const [sinEnganche, setSinEnganche] = useState(false);
+  const [escalonado, setEscalonado] = useState(false);
   const [form, setForm] = useState({
     clienteId: "",
     vendedorId: "",
@@ -688,6 +689,9 @@ function VenderDialog({
     fechaPrimerPago: unMesDespues(todayLocal()),
     fechaLimitePago: unMesDespues(todayLocal()),
     interesMoratorioPorcentaje: "10",
+    mensualidadInicial: "",
+    mesesMensualidadInicial: "",
+    omitirRecargoSinEnganche: false,
     notas: "",
   });
   const [error, setError] = useState("");
@@ -698,13 +702,29 @@ function VenderDialog({
   const engancheCapturado =
     form.enganche.trim() === "" ? null : Number(form.enganche);
   const enganche = sinEnganche ? 0 : (engancheCapturado ?? 0);
+  const esFechaLimite = form.modalidadPago === "FECHA_LIMITE";
+  // El escalonado es un caso especial y solo aplica a créditos en mensualidades.
+  const escalonadoActivo = escalonado && !esFechaLimite;
+  const omiteRecargo = escalonadoActivo && form.omitirRecargoSinEnganche;
   // El recargo aplica cuando la venta es sin enganche (enganche = 0), igual que en el servidor.
-  const recargoAplica = sinEnganche || engancheCapturado === 0;
+  const recargoAplica = (sinEnganche || engancheCapturado === 0) && !omiteRecargo;
   const precio = recargoAplica ? precioBase + RECARGO_SIN_ENGANCHE : precioBase;
   const plazo = Number(form.plazoMeses || 1);
-  const esFechaLimite = form.modalidadPago === "FECHA_LIMITE";
-  const mensualidad = plazo > 0 ? (precio - enganche) / plazo : 0;
-  const restante = precio - enganche;
+  const financiado = precio - enganche;
+  const mensualidad = plazo > 0 ? financiado / plazo : 0;
+  const restante = financiado;
+  // Esquema escalonado: primeras N a cuota pactada, resto = restante / meses restantes.
+  const mesesTramo1 = Number(form.mesesMensualidadInicial || 0);
+  const cuotaTramo1 = Number(form.mensualidadInicial || 0);
+  const mesesTramo2 = plazo - mesesTramo1;
+  const escalonadoCompleto =
+    escalonadoActivo && mesesTramo1 > 0 && cuotaTramo1 > 0 && mesesTramo2 > 0;
+  const cubiertoTramo1 = cuotaTramo1 * mesesTramo1;
+  const escalonadoExcede = escalonadoCompleto && cubiertoTramo1 >= financiado;
+  const cuotaTramo2 =
+    escalonadoCompleto && !escalonadoExcede
+      ? (financiado - cubiertoTramo1) / mesesTramo2
+      : 0;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -719,6 +739,12 @@ function VenderDialog({
         enganche: sinEnganche ? 0 : Number(form.enganche),
         plazoMeses: Number(form.plazoMeses),
         interesMoratorioPorcentaje: Number(form.interesMoratorioPorcentaje),
+        // El esquema escalonado solo viaja cuando está activo y completo.
+        mensualidadInicial: escalonadoActivo ? Number(form.mensualidadInicial) : null,
+        mesesMensualidadInicial: escalonadoActivo
+          ? Number(form.mesesMensualidadInicial)
+          : null,
+        omitirRecargoSinEnganche: omiteRecargo,
         fechaVenta: parseLocalDate(form.fechaVenta),
         // Solo se envía la fecha relevante según la modalidad.
         fechaPrimerPago: esFechaLimite ? null : parseLocalDate(form.fechaPrimerPago),
@@ -738,7 +764,10 @@ function VenderDialog({
     <Dialog
       open={!!lote}
       onOpenChange={(o) => {
-        if (!o) setSinEnganche(false);
+        if (!o) {
+          setSinEnganche(false);
+          setEscalonado(false);
+        }
         onOpenChange(o);
       }}
     >
@@ -935,6 +964,100 @@ function VenderDialog({
               </FieldHint>
             </div>
           )}
+          {!esFechaLimite && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  id="escalonado"
+                  type="checkbox"
+                  checked={escalonado}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEscalonado(checked);
+                    if (!checked)
+                      setForm((f) => ({
+                        ...f,
+                        mensualidadInicial: "",
+                        mesesMensualidadInicial: "",
+                        omitirRecargoSinEnganche: false,
+                      }));
+                  }}
+                />
+                <Label htmlFor="escalonado" className="text-sm cursor-pointer">
+                  Mensualidades escalonadas (caso especial)
+                </Label>
+              </div>
+              {escalonado && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label>Primeras mensualidades (meses)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max={Math.max(1, plazo - 1)}
+                        value={form.mesesMensualidadInicial}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            mesesMensualidadInicial: e.target.value,
+                          })
+                        }
+                        required
+                      />
+                      <FieldError errors={fieldErrors.mesesMensualidadInicial} />
+                      <FieldHint>Menor al plazo ({plazo} meses)</FieldHint>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Monto de esas mensualidades</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={form.mensualidadInicial}
+                        onChange={(e) =>
+                          setForm({ ...form, mensualidadInicial: e.target.value })
+                        }
+                        required
+                      />
+                      <FieldError errors={fieldErrors.mensualidadInicial} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="omitirRecargo"
+                      type="checkbox"
+                      checked={form.omitirRecargoSinEnganche}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          omitirRecargoSinEnganche: e.target.checked,
+                        })
+                      }
+                    />
+                    <Label
+                      htmlFor="omitirRecargo"
+                      className="text-sm cursor-pointer"
+                    >
+                      Omitir el recargo sin enganche (
+                      {formatearMoneda(RECARGO_SIN_ENGANCHE)})
+                    </Label>
+                  </div>
+                  <FieldHint>
+                    Las mensualidades restantes se calculan dividiendo el saldo
+                    pendiente entre los meses que falten.
+                  </FieldHint>
+                  {escalonadoExcede && (
+                    <p className="text-sm text-destructive">
+                      Las mensualidades iniciales ({formatearMoneda(cubiertoTramo1)})
+                      cubren o superan el monto financiado (
+                      {formatearMoneda(financiado)}).
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <div className="bg-blue-50 p-3 rounded text-sm space-y-1">
             {recargoAplica && (
               <>
@@ -971,6 +1094,23 @@ function VenderDialog({
                 <span>Restante a liquidar:</span>
                 <span className="font-semibold">{formatearMoneda(restante)}</span>
               </div>
+            ) : escalonadoCompleto && !escalonadoExcede ? (
+              <>
+                <div className="flex justify-between">
+                  <span>
+                    Primeras {mesesTramo1} mensualidades:
+                  </span>
+                  <span className="font-semibold">
+                    {formatearMoneda(cuotaTramo1)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Restantes {mesesTramo2} mensualidades:</span>
+                  <span className="font-semibold">
+                    {formatearMoneda(cuotaTramo2)}
+                  </span>
+                </div>
+              </>
             ) : (
               <div className="flex justify-between">
                 <span>Mensualidad estimada:</span>
@@ -999,7 +1139,7 @@ function VenderDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || escalonadoExcede}>
               {pending ? "Creando..." : "Crear venta"}
             </Button>
           </div>

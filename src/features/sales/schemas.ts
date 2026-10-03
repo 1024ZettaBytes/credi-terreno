@@ -18,9 +18,32 @@ export const ventaSchema = z
     fechaPrimerPago: dateOnlySchema.optional().nullable(),
     fechaLimitePago: dateOnlySchema.optional().nullable(),
     interesMoratorioPorcentaje: z.coerce.number().min(0, "Mínimo 0%").max(100, "Máximo 100%").default(5),
+    // Esquema escalonado (caso especial): las primeras N mensualidades a una
+    // cuota pactada, el resto = saldo restante / meses restantes.
+    // Ambos campos van juntos; ausentes = crédito uniforme.
+    mensualidadInicial: z.coerce.number().positive("Debe ser mayor a 0").optional().nullable(),
+    mesesMensualidadInicial: z.coerce.number().int().positive("Debe ser mayor a 0").optional().nullable(),
+    // Solo disponible en esquema escalonado: omite el recargo por venta sin enganche.
+    omitirRecargoSinEnganche: z.boolean().default(false),
     notas: z.string().max(1000, "Máximo 1000 caracteres").optional().nullable(),
   })
   .superRefine((d, ctx) => {
+    const escalonado = d.mensualidadInicial != null || d.mesesMensualidadInicial != null
+    if (escalonado) {
+      if (d.modalidadPago !== "MENSUALIDADES") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mensualidadInicial"], message: "El esquema escalonado solo aplica a créditos en mensualidades" })
+      }
+      if (d.mensualidadInicial == null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mensualidadInicial"], message: "Monto de las primeras mensualidades requerido" })
+      }
+      if (d.mesesMensualidadInicial == null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mesesMensualidadInicial"], message: "Número de mensualidades iniciales requerido" })
+      } else if (d.mesesMensualidadInicial >= d.plazoMeses) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mesesMensualidadInicial"], message: `Debe ser menor al plazo (${d.plazoMeses} meses)` })
+      }
+    } else if (d.omitirRecargoSinEnganche) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["omitirRecargoSinEnganche"], message: "El recargo sin enganche solo puede omitirse en el esquema escalonado" })
+    }
     if (d.modalidadPago === "MENSUALIDADES") {
       if (!d.fechaPrimerPago) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fechaPrimerPago"], message: "Fecha del primer pago requerida" })

@@ -143,6 +143,12 @@ export default async function VentaPage({ params }: { params: Promise<{ id: stri
             ) : (
               <>
                 <Row label="Mensualidad" value={formatearMoneda(venta.mensualidadBase)} />
+                {venta.mensualidadInicial && venta.mesesMensualidadInicial && (
+                  <Row
+                    label="Esquema escalonado"
+                    value={`${venta.mesesMensualidadInicial} primeras de ${formatearMoneda(venta.mensualidadInicial)}, el resto = saldo / meses restantes`}
+                  />
+                )}
                 <Row label="Plazo" value={`${venta.plazoMeses} meses`} />
                 <Row label="Día de pago" value={`día ${venta.diaPago}`} />
                 {venta.fechaPrimerPago && (

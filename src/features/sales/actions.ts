@@ -40,8 +40,15 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
   }
 
   const enganche = toDecimal(data.enganche)
-  // Modalidad "Sin enganche": enganche = 0 ⇒ se recarga el precio del lote.
-  const precioTotal = calcularPrecioVenta(lote.totalPrecio, enganche)
+  // Esquema escalonado (caso especial): primeras N mensualidades a cuota pactada.
+  const esEscalonado =
+    data.modalidadPago === "MENSUALIDADES" &&
+    data.mensualidadInicial != null &&
+    data.mesesMensualidadInicial != null
+  // Modalidad "Sin enganche": enganche = 0 ⇒ se recarga el precio del lote,
+  // salvo que el caso especial escalonado pida omitirlo.
+  const aplicarRecargo = !(esEscalonado && data.omitirRecargoSinEnganche)
+  const precioTotal = calcularPrecioVenta(lote.totalPrecio, enganche, aplicarRecargo)
   if (enganche.greaterThan(precioTotal)) return fail("Enganche no puede superar el precio total")
 
   const montoFinanciado = precioTotal.minus(enganche)
@@ -77,12 +84,26 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
     // El usuario captura la fecha del primer pago; el día de pago se deriva de ella.
     const fpp = data.fechaPrimerPago as Date // requerido por el schema
     plazoMeses = data.plazoMeses
-    mensualidad = calcularMensualidadBase(precioTotal, enganche, data.plazoMeses)
+    // En el escalonado la mensualidad #1 es la cuota pactada del tramo inicial.
+    mensualidad = esEscalonado
+      ? toDecimal(data.mensualidadInicial as number)
+      : calcularMensualidadBase(precioTotal, enganche, data.plazoMeses)
     diaPago = fpp.getUTCDate()
     fechaPrimerPago = fpp
     proximaFechaPago = fechaVencimientoMensualidad(fpp, diaPago, 1)
     fechaLimitePago = null
   }
+  if (esEscalonado) {
+    const cubiertoTramo1 = toDecimal(data.mensualidadInicial as number).times(
+      data.mesesMensualidadInicial as number,
+    )
+    if (cubiertoTramo1.greaterThanOrEqualTo(montoFinanciado)) {
+      return fail(
+        "Las mensualidades iniciales cubren o superan el monto financiado. Reduce el monto o el número de meses iniciales.",
+      )
+    }
+  }
+
   try {
     const venta = await prisma.$transaction(async (tx) => {
       const v = await tx.venta.create({
@@ -101,6 +122,10 @@ export async function createVenta(input: unknown): Promise<ActionResult<{ id: st
           modalidadPago: data.modalidadPago,
           fechaLimitePago,
           interesMoratorioPorcentaje: new Decimal(data.interesMoratorioPorcentaje).toFixed(2),
+          mensualidadInicial: esEscalonado
+            ? toDecimal(data.mensualidadInicial as number).toFixed(2)
+            : null,
+          mesesMensualidadInicial: esEscalonado ? (data.mesesMensualidadInicial as number) : null,
           proximaFechaPago,
           saldoMensualidadActual: mensualidad.toFixed(2),
           numeroMensualidadActual: 1,
@@ -358,6 +383,9 @@ export async function convertirAFechaLimite(input: unknown): Promise<ActionResul
     data: {
       modalidadPago: "FECHA_LIMITE",
       fechaLimitePago,
+      // Al colapsar a una sola exhibición el esquema escalonado deja de aplicar.
+      mensualidadInicial: null,
+      mesesMensualidadInicial: null,
       // El saldo restante se convierte en el importe a liquidar en una exhibición.
       plazoMeses: 1,
       mensualidadBase: saldo.toFixed(2),

@@ -9,8 +9,12 @@ import { uploadFile } from "@/lib/storage"
 import {
   calcularEstadoCuenta,
   calcularMoraDiaria,
+  cuotaMensual,
+  enTramoInicial,
+  esquemaEscalonadoDeVenta,
   fechaVencimientoMensualidad,
   recalcularEstadoVenta,
+  type EsquemaEscalonado,
 } from "@/lib/finance"
 import { formatDateISO, parseLocalDate } from "@/lib/date"
 import { registrarPagoSchema } from "./schemas"
@@ -33,6 +37,8 @@ interface VentaSnapshot {
   saldoMensualidadActual: Decimal
   numeroMensualidadActual: number
   saldoCapital: Decimal
+  /** Esquema escalonado (caso especial); null = crédito uniforme. */
+  esquemaEscalonado: EsquemaEscalonado | null
 }
 
 export interface DistribucionItem {
@@ -94,14 +100,19 @@ function simularDistribucion(
     restante = restante.minus(aplicado)
   }
 
+  const esquema = v.esquemaEscalonado
+
   const recalcMensualidad = () => {
     const mesesRestantes = v.plazoMeses - (numMes - 1)
     if (mesesRestantes <= 0 || saldoCapital.lessThanOrEqualTo(0)) {
       saldoMens = new Decimal(0)
       return
     }
+    // En el tramo inicial escalonado la cuota es pactada: un abono a capital no
+    // la abarata, solo reduce las mensualidades del tramo siguiente.
+    if (enTramoInicial(numMes, esquema)) return
     const pagadoEsteMes = mensualidadBase.minus(saldoMens)
-    const nuevaMens = saldoCapital.dividedBy(mesesRestantes).toDecimalPlaces(2)
+    const nuevaMens = cuotaMensual(numMes, v.plazoMeses, saldoCapital, esquema)
     mensualidadBase = nuevaMens
     saldoMens = Decimal.max(nuevaMens.minus(pagadoEsteMes), new Decimal(0))
   }
@@ -181,6 +192,11 @@ function simularDistribucion(
       if (saldoMens.lessThanOrEqualTo(0)) {
         numMes += 1
         if (numMes <= v.plazoMeses) {
+          // El escalonado reprecifica al cambiar de mes (fija en el tramo inicial,
+          // saldo/meses restantes después); el uniforme conserva su cuota viva.
+          if (esquema) {
+            mensualidadBase = cuotaMensual(numMes, v.plazoMeses, saldoCapital, esquema)
+          }
           saldoMens = mensualidadBase
           proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, numMes)
         } else {
@@ -237,6 +253,8 @@ function ventaToSnapshot(v: {
   saldoMensualidadActual: import("decimal.js").Decimal
   numeroMensualidadActual: number
   saldoCapital: import("decimal.js").Decimal
+  mensualidadInicial: import("decimal.js").Decimal | null
+  mesesMensualidadInicial: number | null
 }): VentaSnapshot {
   return {
     id: v.id,
@@ -252,6 +270,7 @@ function ventaToSnapshot(v: {
     saldoMensualidadActual: toDecimal(v.saldoMensualidadActual),
     numeroMensualidadActual: v.numeroMensualidadActual,
     saldoCapital: toDecimal(v.saldoCapital),
+    esquemaEscalonado: esquemaEscalonadoDeVenta(v),
   }
 }
 
@@ -418,6 +437,8 @@ export async function deletePago(pagoId: string): Promise<ActionResult<null>> {
           fechaPrimerPago: venta.fechaPrimerPago ?? venta.fechaVenta,
           plazoMeses: venta.plazoMeses,
           montoFinanciado: venta.montoFinanciado,
+          mensualidadInicial: venta.mensualidadInicial,
+          mesesMensualidadInicial: venta.mesesMensualidadInicial,
         },
         restantes,
       )

@@ -116,6 +116,9 @@ export interface VentaDTO {
   modalidadPago: ModalidadPago
   fechaLimitePago: string | null
   interesMoratorioPorcentaje: string
+  /** Esquema escalonado (caso especial); null = crédito uniforme. */
+  mensualidadInicial: string | null
+  mesesMensualidadInicial: number | null
   comisionPorcentaje: string
   comisionMonto: string
   estatus: EstatusVenta
