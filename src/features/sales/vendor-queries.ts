@@ -90,6 +90,8 @@ export async function getVendedorDetalle(vendedorId: string): Promise<VendedorDe
       modalidadPago: v.modalidadPago,
       fechaLimitePago: v.fechaLimitePago ? formatDateISO(v.fechaLimitePago) : null,
       interesMoratorioPorcentaje: v.interesMoratorioPorcentaje.toFixed(2),
+      mensualidadInicial: v.mensualidadInicial ? v.mensualidadInicial.toFixed(2) : null,
+      mesesMensualidadInicial: v.mesesMensualidadInicial,
       comisionPorcentaje: v.comisionPorcentaje.toFixed(2),
       comisionMonto: v.comisionMonto.toFixed(2),
       estatus: v.estatus,

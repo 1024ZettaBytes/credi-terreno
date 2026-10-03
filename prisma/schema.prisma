@@ -157,6 +157,14 @@ model Venta {
   fechaLimitePago            DateTime?
   interesMoratorioPorcentaje Decimal      @db.Decimal(5, 2) @default(5.0)
 
+  // --- Esquema escalonado (caso especial, opcional) ---
+  // Las primeras `mesesMensualidadInicial` mensualidades se cobran a
+  // `mensualidadInicial`; las restantes se derivan dividiendo el saldo de
+  // capital vivo entre los meses que falten. Ambos campos van juntos:
+  // null/null = crédito uniforme (comportamiento estándar).
+  mensualidadInicial         Decimal?     @db.Decimal(12, 2)
+  mesesMensualidadInicial    Int?
+
   // Estado vivo del crédito (se actualiza con cada pago)
   proximaFechaPago           DateTime
   saldoMensualidadActual     Decimal      @db.Decimal(12, 2)

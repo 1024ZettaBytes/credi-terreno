@@ -447,6 +447,12 @@ function PagoDialog({
               <>
                 Mensualidad: {formatearMoneda(venta.mensualidadBase)} · Día{" "}
                 {venta.diaPago}
+                {venta.mensualidadInicial && venta.mesesMensualidadInicial && (
+                  <span className="block mt-1">
+                    Escalonada: primeras {venta.mesesMensualidadInicial} de{" "}
+                    {formatearMoneda(venta.mensualidadInicial)}
+                  </span>
+                )}
                 {estado && (
                   <span className="block mt-1">
                     Próximo vencimiento:{" "}

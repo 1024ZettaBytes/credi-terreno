@@ -4,6 +4,7 @@ import type { TipoPago } from "@prisma/client"
 /**
  * Recargo aplicado a las ventas "Sin enganche" (enganche = 0): el precio total
  * del lote se incrementa en esta cantidad. Ver `calcularPrecioVenta`.
+ * Las ventas con esquema escalonado (caso especial) pueden omitirlo.
  */
 export const RECARGO_SIN_ENGANCHE = 20000
 
@@ -14,9 +15,10 @@ export const RECARGO_SIN_ENGANCHE = 20000
 export function calcularPrecioVenta(
   precioBaseLote: Decimal | string | number,
   enganche: Decimal | string | number,
+  aplicarRecargo: boolean = true,
 ): Decimal {
   const base = toDecimal(precioBaseLote)
-  return toDecimal(enganche).lessThanOrEqualTo(0)
+  return aplicarRecargo && toDecimal(enganche).lessThanOrEqualTo(0)
     ? base.plus(RECARGO_SIN_ENGANCHE)
     : base
 }
@@ -30,6 +32,85 @@ export function calcularMensualidadBase(
   if (plazoMeses <= 0) return new Decimal(0)
   const fin = toDecimal(precioTotal).minus(toDecimal(enganche))
   return fin.dividedBy(plazoMeses).toDecimalPlaces(2)
+}
+
+/* ============================================================
+ * ESQUEMA ESCALONADO (caso especial)
+ * Las primeras N mensualidades se cobran a una cuota pactada fija; las
+ * restantes se derivan del saldo de capital vivo entre los meses que falten.
+ * `esquema = null` ⇒ crédito uniforme (comportamiento estándar).
+ * ============================================================ */
+
+export interface EsquemaEscalonado {
+  /** Cuota fija de las primeras `mesesMensualidadInicial` mensualidades. */
+  mensualidadInicial: Decimal
+  /** Cuántas mensualidades iniciales se cobran a la cuota pactada. */
+  mesesMensualidadInicial: number
+}
+
+/**
+ * Normaliza los campos (nullables) de la venta a un `EsquemaEscalonado`.
+ * Devuelve null si la venta no es escalonada o los datos están incompletos.
+ */
+export function esquemaEscalonadoDeVenta(v: {
+  mensualidadInicial?: Decimal | string | number | null
+  mesesMensualidadInicial?: number | null
+}): EsquemaEscalonado | null {
+  if (v.mensualidadInicial == null || v.mesesMensualidadInicial == null) return null
+  if (v.mesesMensualidadInicial <= 0) return null
+  return {
+    mensualidadInicial: toDecimal(v.mensualidadInicial),
+    mesesMensualidadInicial: v.mesesMensualidadInicial,
+  }
+}
+
+/** ¿La mensualidad N cae dentro del tramo de cuota pactada fija? */
+export function enTramoInicial(
+  numeroMensualidad: number,
+  esquema: EsquemaEscalonado | null,
+): boolean {
+  return esquema !== null && numeroMensualidad <= esquema.mesesMensualidadInicial
+}
+
+/**
+ * Cuota que corresponde a la mensualidad N (1-based).
+ * - Tramo inicial escalonado: la cuota pactada fija.
+ * - Fuera del tramo inicial: saldo de capital vivo / meses restantes, que es la
+ *   misma regla que ya aplicaba el recálculo tras un abono a capital.
+ */
+export function cuotaMensual(
+  numeroMensualidad: number,
+  plazoMeses: number,
+  saldoCapital: Decimal | string | number,
+  esquema: EsquemaEscalonado | null,
+): Decimal {
+  const saldo = toDecimal(saldoCapital)
+  if (saldo.lessThanOrEqualTo(0)) return new Decimal(0)
+  if (numeroMensualidad > plazoMeses) return new Decimal(0)
+  if (esquema !== null && numeroMensualidad <= esquema.mesesMensualidadInicial) {
+    // Nunca cobrar más de lo que resta por pagar.
+    return Decimal.min(esquema.mensualidadInicial, saldo).toDecimalPlaces(2)
+  }
+  const mesesRestantes = plazoMeses - (numeroMensualidad - 1)
+  if (mesesRestantes <= 0) return new Decimal(0)
+  return saldo.dividedBy(mesesRestantes).toDecimalPlaces(2)
+}
+
+/**
+ * Cuota teórica del segundo tramo al momento de crear la venta (preview/UI):
+ *   (montoFinanciado − mensualidadInicial × mesesIniciales) / (plazo − mesesIniciales)
+ */
+export function calcularMensualidadSegundoTramo(
+  montoFinanciado: Decimal | string | number,
+  plazoMeses: number,
+  mensualidadInicial: Decimal | string | number,
+  mesesMensualidadInicial: number,
+): Decimal {
+  const mesesRestantes = plazoMeses - mesesMensualidadInicial
+  if (mesesRestantes <= 0) return new Decimal(0)
+  const cubiertoTramo1 = toDecimal(mensualidadInicial).times(mesesMensualidadInicial)
+  const restante = toDecimal(montoFinanciado).minus(cubiertoTramo1)
+  return Decimal.max(restante, new Decimal(0)).dividedBy(mesesRestantes).toDecimalPlaces(2)
 }
 
 /** Calcula la comisión del vendedor sobre el precio total */
@@ -101,6 +182,9 @@ export interface VentaInmutable {
   plazoMeses: number
   /** Capital financiado original (precioTotal − enganche). */
   montoFinanciado: Decimal | string | number
+  /** Esquema escalonado (caso especial); null = crédito uniforme. */
+  mensualidadInicial?: Decimal | string | number | null
+  mesesMensualidadInicial?: number | null
 }
 
 export interface PagoParaRecalculo {
@@ -127,8 +211,11 @@ export function recalcularEstadoVenta(
   pagos: PagoParaRecalculo[],
 ): EstadoVentaRecalculado {
   const montoFinanciado = toDecimal(v.montoFinanciado)
-  let mensualidadBase = calcularMensualidadBase(montoFinanciado, 0, v.plazoMeses)
+  const esquema = esquemaEscalonadoDeVenta(v)
   let saldoCapital = montoFinanciado
+  let mensualidadBase = esquema
+    ? cuotaMensual(1, v.plazoMeses, saldoCapital, esquema)
+    : calcularMensualidadBase(montoFinanciado, 0, v.plazoMeses)
   let saldoMens = mensualidadBase
   let numMes = 1
   let proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, 1)
@@ -139,8 +226,11 @@ export function recalcularEstadoVenta(
       saldoMens = new Decimal(0)
       return
     }
+    // En el tramo inicial escalonado la cuota es pactada: un abono a capital no
+    // la abarata, solo reduce las mensualidades del tramo siguiente.
+    if (enTramoInicial(numMes, esquema)) return
     const pagadoEsteMes = mensualidadBase.minus(saldoMens)
-    const nuevaMens = saldoCapital.dividedBy(mesesRestantes).toDecimalPlaces(2)
+    const nuevaMens = cuotaMensual(numMes, v.plazoMeses, saldoCapital, esquema)
     mensualidadBase = nuevaMens
     saldoMens = Decimal.max(nuevaMens.minus(pagadoEsteMes), new Decimal(0))
   }
@@ -153,6 +243,9 @@ export function recalcularEstadoVenta(
       if (saldoMens.lessThanOrEqualTo(0)) {
         numMes += 1
         if (numMes <= v.plazoMeses) {
+          if (esquema) {
+            mensualidadBase = cuotaMensual(numMes, v.plazoMeses, saldoCapital, esquema)
+          }
           saldoMens = mensualidadBase
           proximaFechaPago = fechaVencimientoMensualidad(v.fechaPrimerPago, v.diaPago, numMes)
         } else {
